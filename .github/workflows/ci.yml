@@ -159,7 +159,10 @@ jobs:
           DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
         run: |
           if [ -z "$DEPLOY_HOOK" ]; then
-            echo "RENDER_DEPLOY_HOOK is not set on the 'production' environment." >&2
-            exit 1
+            echo "::notice title=Deploy skipped::RENDER_DEPLOY_HOOK is not configured on the" \
+                 "'production' environment, so there is no host to deploy to yet. Skipping."
+            echo "To enable: provision the host (docs/deployment.md), add RENDER_DEPLOY_HOOK as an" \
+                 "environment secret, and add a required reviewer to gate real deploys (D-013)."
+            exit 0
           fi
           curl -fsSL -X POST "$DEPLOY_HOOK"

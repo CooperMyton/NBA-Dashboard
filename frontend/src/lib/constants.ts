@@ -2,7 +2,7 @@
 export const AVAILABLE_SEASONS = [2025, 2024, 2023] as const;
 
 // Default season shown on the Dashboard.
-export const DEFAULT_SEASON = 2024;
+export const DEFAULT_SEASON = 2025;
 
 // The upcoming season we predict (schedule released, games unplayed).
 export const UPCOMING_SEASON = 2026;
