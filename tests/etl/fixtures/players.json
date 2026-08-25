@@ -1,0 +1,38 @@
+[
+  {
+    "id": 501,
+    "first_name": "Jayson",
+    "last_name": "Tatum",
+    "position": "F",
+    "height": "6-8",
+    "weight": "210",
+    "jersey_number": "0",
+    "college": "Duke",
+    "country": "USA",
+    "team": {"id": 1}
+  },
+  {
+    "id": 502,
+    "first_name": "LeBron",
+    "last_name": "James",
+    "position": "F",
+    "height": "6-9",
+    "weight": "250",
+    "jersey_number": "23",
+    "college": null,
+    "country": "USA",
+    "team": {"id": 2}
+  },
+  {
+    "id": 503,
+    "first_name": "Free",
+    "last_name": "Agent",
+    "position": null,
+    "height": null,
+    "weight": null,
+    "jersey_number": null,
+    "college": null,
+    "country": "USA",
+    "team": null
+  }
+]

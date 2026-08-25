@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1,
+    "abbreviation": "BOS",
+    "city": "Boston",
+    "conference": "East",
+    "division": "Atlantic",
+    "full_name": "Boston Celtics",
+    "name": "Celtics"
+  },
+  {
+    "id": 2,
+    "abbreviation": "LAL",
+    "city": "Los Angeles",
+    "conference": "West",
+    "division": "Pacific",
+    "full_name": "Los Angeles Lakers",
+    "name": "Lakers"
+  }
+]

@@ -1,0 +1,165 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  frontend:
+    name: Lint, type-check, test, build (frontend)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test
+      - run: npm run build
+
+  backend:
+    name: Lint, type-check, test (backend/etl/ml)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Ruff (lint)
+        run: uv run ruff check .
+
+      - name: Black (format check)
+        run: uv run black --check .
+
+      - name: Mypy (types)
+        run: uv run mypy backend etl ml
+
+      - name: Pytest (+ coverage; backend gate at 80%)
+        run: uv run pytest --cov=backend --cov-report=term-missing --cov-fail-under=80
+
+  migrations:
+    name: Migration round-trip + drift check (Postgres)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nba
+          POSTGRES_PASSWORD: nba
+          POSTGRES_DB: nba_test
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://nba:nba@localhost:5432/nba_test
+      REDIS_URL: redis://localhost:6379/0
+      BALLDONTLIE_API_KEY: dummy
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --frozen
+      - name: Round-trip (upgrade -> downgrade -> upgrade)
+        run: |
+          uv run alembic -c backend/alembic.ini upgrade head
+          uv run alembic -c backend/alembic.ini downgrade base
+          uv run alembic -c backend/alembic.ini upgrade head
+      - name: No model/migration drift
+        run: uv run alembic -c backend/alembic.ini check
+
+  docker-build:
+    name: Build images (no push — validates Dockerfiles on PRs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend
+        run: docker build -f docker/Dockerfile.backend -t nba-backend:ci .
+      - name: Build frontend
+        run: docker build -f docker/Dockerfile.frontend -t nba-frontend:ci .
+
+  # On merge to main only: push images to GHCR, then deploy behind a manual-approval gate.
+  images:
+    name: Build & push images (GHCR)
+    needs: [frontend, backend, migrations, docker-build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Lowercase image base
+        run: echo "IMAGE_BASE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+      - name: Backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.backend
+          push: true
+          tags: |
+            ${{ env.IMAGE_BASE }}-backend:${{ github.sha }}
+            ${{ env.IMAGE_BASE }}-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.frontend
+          push: true
+          tags: |
+            ${{ env.IMAGE_BASE }}-frontend:${{ github.sha }}
+            ${{ env.IMAGE_BASE }}-frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to production (manual approval)
+    needs: images
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # The 'production' GitHub Environment carries the required-reviewer rule (approval gate, D-013)
+    # and the deploy secret. Configure it in repo Settings → Environments.
+    environment: production
+    steps:
+      - name: Trigger host deploy
+        # The host pulls the new image; the backend container runs `alembic upgrade head` on boot
+        # (expand/contract migrations). Set RENDER_DEPLOY_HOOK on the 'production' environment.
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$DEPLOY_HOOK" ]; then
+            echo "RENDER_DEPLOY_HOOK is not set on the 'production' environment." >&2
+            exit 1
+          fi
+          curl -fsSL -X POST "$DEPLOY_HOOK"

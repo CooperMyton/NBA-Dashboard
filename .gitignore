@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Local SQLite DBs (used only for offline migration checks)
+*.db
+
+# Caches / coverage
+.coverage
+coverage.xml
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ML artifacts (registry.json is tracked; model binaries are not)
+ml/models/*.pkl
+
+# Node / frontend (Phase 4)
+node_modules/
+dist/
+.vite/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Claude Code local (machine-specific permissions)
+.claude/settings.local.json

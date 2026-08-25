@@ -1,0 +1,89 @@
+# Local dev stack. Run from the repo root:
+#   docker compose -f docker/docker-compose.yml up --build
+# The ETL container is opt-in (profile "etl"); in the cloud, ETL runs as a scheduled
+# GitHub Actions workflow (see docs/deployment.md).
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-nba}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nba}
+      POSTGRES_DB: ${POSTGRES_DB:-nba}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nba}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-nba}:${POSTGRES_PASSWORD:-nba}@db:5432/${POSTGRES_DB:-nba}
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    # Serve the trained model registry + artifacts from the host so inference and the
+    # /model/registry endpoint reflect locally-trained models (in prod these ship in the image).
+    volumes:
+      - ../ml:/app/ml
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Apply migrations before serving so a clean clone comes up with a ready schema.
+    command:
+      - "sh"
+      - "-c"
+      - "alembic -c backend/alembic.ini upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 8000"
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+  # ETL worker (local dev only). Enable with: docker compose --profile etl up
+  etl:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-nba}:${POSTGRES_PASSWORD:-nba}@db:5432/${POSTGRES_DB:-nba}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    profiles:
+      - etl
+    # One-shot local ETL run (needs BALLDONTLIE_API_KEY in .env). In the cloud this runs as a
+    # scheduled GitHub Actions workflow instead — see .github/workflows/etl-nightly.yml.
+    command: ["sh", "-c", "alembic -c backend/alembic.ini upgrade head && python -m etl.pipeline"]
+
+volumes:
+  pgdata:

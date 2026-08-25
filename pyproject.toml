@@ -1,0 +1,76 @@
+[project]
+name = "nba-analytics"
+version = "0.1.0"
+description = "NBA analytics platform — ETL, API, and ML for game win-probability predictions."
+readme = "README.md"
+requires-python = "==3.12.*"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.30",
+    "alembic>=1.14",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "redis>=5.2",
+    "httpx>=0.28",
+    "tenacity>=9.0",
+    "structlog>=24.4",
+    "numpy>=2.1",
+    "pandas>=2.2",
+    "scikit-learn>=1.5",
+    "joblib>=1.4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+    "ruff>=0.8",
+    "black>=24.10",
+    "mypy>=1.13",
+    "aiosqlite>=0.22.1",
+    "fakeredis>=2.37.0",
+]
+
+# This is an application, not a distributable library: uv manages the environment
+# and dependencies without building/installing the project itself. The top-level
+# `backend`, `etl`, and `ml` packages are imported directly from the repo root.
+# See docs/decisions.md D-015.
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+# Generated Alembic migrations are excluded from lint/format.
+extend-exclude = ["frontend", "mobile", "backend/alembic/versions"]
+
+[tool.ruff.lint]
+# Formatting is delegated to black; ruff handles linting only.
+select = ["E", "F", "I", "UP", "B", "C4", "SIM"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+extend-exclude = "frontend|mobile|backend/alembic/versions"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
+exclude = ["frontend", "mobile", "backend/alembic/versions"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["backend", "etl", "ml"]
+omit = ["backend/alembic/*", "*/__init__.py"]
+
+[tool.coverage.report]
+show_missing = true

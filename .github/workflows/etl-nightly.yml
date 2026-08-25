@@ -1,0 +1,44 @@
+name: Nightly ETL
+
+# Cloud ETL runs here (not an always-on container) — docs/decisions.md D-014.
+# Requires repository secrets: DATABASE_URL, REDIS_URL, BALLDONTLIE_API_KEY.
+on:
+  schedule:
+    # 09:00 UTC daily — after US games finish, before the morning.
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+    inputs:
+      seasons:
+        description: "Comma-separated seasons to sync (default: current season)"
+        required: false
+        default: ""
+
+concurrency:
+  group: etl-nightly
+  cancel-in-progress: false
+
+jobs:
+  etl:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      REDIS_URL: ${{ secrets.REDIS_URL }}
+      BALLDONTLIE_API_KEY: ${{ secrets.BALLDONTLIE_API_KEY }}
+      ETL_SEASONS: ${{ github.event.inputs.seasons }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Apply migrations (expand/contract; safe each run)
+        run: uv run alembic -c backend/alembic.ini upgrade head
+
+      - name: Run nightly ETL pipeline
+        run: uv run python -m etl.pipeline

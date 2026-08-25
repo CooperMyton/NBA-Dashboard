@@ -1,0 +1,28 @@
+[
+  {
+    "id": 1001,
+    "date": "2024-01-15",
+    "season": 2023,
+    "status": "Final",
+    "period": 4,
+    "postseason": false,
+    "home_team_score": 110,
+    "visitor_team_score": 104,
+    "home_team": {"id": 1},
+    "visitor_team": {"id": 2},
+    "datetime": "2024-01-15T23:00:00Z"
+  },
+  {
+    "id": 1002,
+    "date": "2024-02-20",
+    "season": 2023,
+    "status": "Final",
+    "period": 4,
+    "postseason": false,
+    "home_team_score": 98,
+    "visitor_team_score": 120,
+    "home_team": {"id": 2},
+    "visitor_team": {"id": 1},
+    "datetime": null
+  }
+]

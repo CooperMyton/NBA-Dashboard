@@ -1,0 +1,67 @@
+{
+  "active": 1,
+  "versions": [
+    {
+      "version": 1,
+      "filename": "model_v1_20260825.pkl",
+      "date": "20260825",
+      "algorithm": "logistic_regression",
+      "metrics": {
+        "accuracy": 0.7061790668348046,
+        "log_loss": 0.5811225265679354,
+        "brier": 0.19721192230978335,
+        "n": 793.0
+      },
+      "features": [
+        "home_form_win_pct",
+        "away_form_win_pct",
+        "home_form_pt_diff",
+        "away_form_pt_diff",
+        "home_rest_days",
+        "away_rest_days",
+        "home_net_rating",
+        "away_net_rating",
+        "h2h_home_win_pct",
+        "home_elo",
+        "away_elo",
+        "elo_win_prob"
+      ],
+      "training_window": {
+        "seasons": null,
+        "n_train": 3169
+      },
+      "git_commit": "unknown"
+    },
+    {
+      "version": 2,
+      "filename": "model_v2_20260825.pkl",
+      "date": "20260825",
+      "algorithm": "gradient_boosting",
+      "metrics": {
+        "accuracy": 0.6721311475409836,
+        "log_loss": 0.6107984176450532,
+        "brier": 0.20982148436026485,
+        "n": 793.0
+      },
+      "features": [
+        "home_form_win_pct",
+        "away_form_win_pct",
+        "home_form_pt_diff",
+        "away_form_pt_diff",
+        "home_rest_days",
+        "away_rest_days",
+        "home_net_rating",
+        "away_net_rating",
+        "h2h_home_win_pct",
+        "home_elo",
+        "away_elo",
+        "elo_win_prob"
+      ],
+      "training_window": {
+        "seasons": null,
+        "n_train": 3169
+      },
+      "git_commit": "unknown"
+    }
+  ]
+}
