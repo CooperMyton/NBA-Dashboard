@@ -1,4 +1,4 @@
-# NBA Analytics Platform
+# Hardwood — NBA Analytics Platform
 
 A full-stack sports-analytics platform that ingests NBA data nightly, engineers features, trains a
 calibrated win-probability model, serves everything through a versioned async API, and presents it
@@ -26,7 +26,7 @@ in a React dashboard. **Designed and built to run at $0/month** on free tiers.
              cache  ▼      │ read-through
                   Redis ───┘
                     │
-          React + Vite + TanStack Query  (Dashboard · Teams · Players · Model Lab · Prediction Tracker)
+          React + Vite + TanStack Query  (Dashboard · Teams · Team Detail · Players · Model Lab · Prediction Tracker)
 ```
 
 The ML pipeline never sits in the request path — it writes predictions offline; the API only ever
@@ -60,7 +60,7 @@ Hosting plan: **Neon** (Postgres) · **Upstash** (Redis) · **Render** (API) · 
 | 2 · API | ✅ |
 | 3 · ML pipeline + inference | ✅ |
 | 4 · Frontend | ✅ |
-| 5 · Deployment (Docker + CI/CD) | ✅ *(local `docker compose up` pending first run)* |
+| 5 · Deployment (Docker + CI/CD) | ✅ *(runs locally; cloud hosting not yet provisioned)* |
 | 6 · Mobile | stretch |
 
 ## API surface (`/api/v1`)
@@ -108,7 +108,7 @@ cd frontend && npm install && npm run dev   # proxies /api → :8000
 backend/   FastAPI app (api/v1 routers, services, models, schemas, core), Alembic, scripts
 etl/       provider client, sync/derive/settle/predict jobs, pipeline orchestration
 ml/        pipeline (collect→features→train→evaluate→register), inference, registry
-frontend/  React + Vite app (5 pages, typed API client, query hooks)
+frontend/  React + Vite app (6 pages, typed API client, query hooks)
 docs/      decisions · data_source · ml_lifecycle · deployment
 docker/    compose + Dockerfiles (backend, frontend) + nginx
 tests/     backend / etl / ml suites (~80 tests)
