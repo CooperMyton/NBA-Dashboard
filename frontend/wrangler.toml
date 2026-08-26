@@ -1,0 +1,15 @@
+# Cloudflare Workers Static Assets config for the Hardwood frontend.
+#
+# This is an assets-only Worker: there is no `main` script, so Cloudflare serves the built
+# Vite output directly from its edge. `wrangler deploy` runs from this directory (the Worker
+# build's "path" is `frontend`), so ./dist is the Vite build output.
+name = "nba-dashboard"
+compatibility_date = "2026-01-01"
+
+[assets]
+directory = "./dist"
+
+# The app is a client-side SPA (react-router). Deep links such as /teams/42 and /model-lab have
+# no matching file on disk, so unmatched routes must fall back to index.html and let the router
+# resolve them. Without this they would 404. Mirrors the nginx try_files rule used locally.
+not_found_handling = "single-page-application"
