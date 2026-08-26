@@ -7,6 +7,17 @@ in a React dashboard. **Designed and built to run at $0/month** on free tiers.
 > **What it does:** predicts **P(home team wins)** for upcoming games (binary classification),
 > grades those predictions against real results, and tracks model accuracy and calibration over time.
 
+### [Live demo →](https://nba-dashboard.cooper-myton.workers.dev)
+
+| | |
+|---|---|
+| **App** | https://nba-dashboard.cooper-myton.workers.dev |
+| **API docs** | https://nba-dashboard-eezf.onrender.com/docs |
+
+Running on free tiers: Cloudflare Workers (static assets) · Render (API) · Neon (Postgres) ·
+Upstash (Redis) · GitHub Actions (CI + nightly ETL). The API sleeps when idle, so the **first
+request after a quiet period takes ~30-60s to wake** — subsequent loads are fast.
+
 ---
 
 ## Architecture
@@ -60,7 +71,7 @@ Hosting plan: **Neon** (Postgres) · **Upstash** (Redis) · **Render** (API) · 
 | 2 · API | ✅ |
 | 3 · ML pipeline + inference | ✅ |
 | 4 · Frontend | ✅ |
-| 5 · Deployment (Docker + CI/CD) | ✅ *(runs locally; cloud hosting not yet provisioned)* |
+| 5 · Deployment (Docker + CI/CD) | ✅ *(deployed — see live demo above)* |
 | 6 · Mobile | stretch |
 
 ## API surface (`/api/v1`)
