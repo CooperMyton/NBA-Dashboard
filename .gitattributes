@@ -1,0 +1,9 @@
+# Normalise to LF in the repository; let Git decide the working-copy ending per platform.
+* text=auto
+
+# Files consumed by Linux containers must keep LF in the working copy too. A CRLF shebang
+# makes the kernel look for an interpreter named "/bin/sh\r", which fails at runtime with
+# "not found" (exit 127) — a confusing failure to debug inside a container.
+*.sh text eol=lf
+Dockerfile* text eol=lf
+docker/** text eol=lf

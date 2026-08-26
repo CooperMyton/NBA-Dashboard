@@ -20,6 +20,11 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY backend ./backend
 COPY etl ./etl
 COPY ml ./ml
+COPY docker/start.sh ./docker/start.sh
+RUN chmod +x ./docker/start.sh
 
+# Migrate-then-serve lives in the image so every host (compose, Render, any PaaS) boots the
+# same way and no platform-specific start-command override is needed. The script honours
+# $PORT when the host sets one.
 EXPOSE 8000
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["./docker/start.sh"]
