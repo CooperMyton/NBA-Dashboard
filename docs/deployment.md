@@ -19,7 +19,7 @@
 |---|---|---|---|
 | `db` | postgres:16 | 5432 | healthchecked; `pgdata` volume |
 | `redis` | redis:7 | 6379 | cache + rate limiting |
-| `backend` | `docker/Dockerfile.backend` | 8000 | `alembic upgrade head` then uvicorn |
+| `backend` | `docker/Dockerfile.backend` | 8000 | `docker/start.sh`: `alembic upgrade head` then uvicorn |
 | `frontend` | `docker/Dockerfile.frontend` | 5173→80 | nginx serves `dist/`, proxies `/api` → `backend:8000` |
 | `etl` | `docker/Dockerfile.backend` (profile `etl`) | — | one-shot `python -m etl.pipeline` |
 
@@ -56,6 +56,17 @@ backend are **different origins**, so:
     D-013). Triggers the host to pull the new image via `RENDER_DEPLOY_HOOK`; the backend container
     runs `alembic upgrade head` on boot (expand/contract), so migrations apply as a pre-serve step.
 
+### Container start command
+
+The image's `CMD` is `docker/start.sh`, which runs `alembic -c backend/alembic.ini upgrade head`
+and then `exec`s uvicorn on `${PORT:-8000}`. Keeping this in the image means **no host-specific
+start-command override is needed** — compose and any PaaS boot identically, and hosts that inject
+`$PORT` (Render, Cloud Run, Fly) are honoured automatically. On Render, leave the *Docker Command*
+field **empty**.
+
+Shell scripts are pinned to LF via `.gitattributes`; a CRLF shebang makes Linux look for an
+interpreter named `/bin/sh` and the container exits 127.
+
 **To activate the deploy** once a host is provisioned: create a `production` environment in repo
 Settings → Environments, add the required reviewer, and set `RENDER_DEPLOY_HOOK` (the host's deploy
 hook URL) as an environment secret. No other change needed.
@@ -75,9 +86,13 @@ hook URL) as an environment secret. No other change needed.
 
 - **CI/CD workflow:** YAML validated; runs on GitHub (no local equivalent).
 - **`docker compose` config:** validated with `docker compose config` (all 5 services parse).
-- **Local `docker compose up` end-to-end:** not yet run on the dev machine (Docker Desktop was
-  pending first-run onboarding). The migration round-trip and image builds are exercised in CI on
-  GitHub's Docker, so the containers are proven there; a local clean-clone run remains to be done.
+- **Local `docker compose up` end-to-end:** verified. All five services run; the backend migrates
+  then serves, and the frontend is served by nginx with `/api` proxied. Real data for seasons
+  2023-24 through 2025-26 plus the 2026-27 schedule is loaded and served.
+- **Model artifacts:** `ml/models/*.pkl` are tracked in git (the active logistic-regression model is
+  ~2 KB) so the CI-built image is self-contained and the deployed API can serve `/model/predict`.
+  Without them the API still starts — model load failure is caught at startup — but live inference
+  would return an error.
 
 ## Open (confirm when provisioning the cloud env)
 
