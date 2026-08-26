@@ -19,8 +19,9 @@ coverage.xml
 .mypy_cache/
 .ruff_cache/
 
-# ML artifacts (registry.json is tracked; model binaries are not)
-ml/models/*.pkl
+# ML artifacts: registry.json AND the model binaries are tracked. The active model is ~2 KB
+# (logistic regression); tracking them keeps the CI-built image self-contained so the
+# deployed API can serve live /model/predict. Retrain output is small and reproducible.
 
 # Node / frontend (Phase 4)
 node_modules/
@@ -35,3 +36,6 @@ Thumbs.db
 
 # Claude Code local (machine-specific permissions)
 .claude/settings.local.json
+
+# Local working notes (not part of the public project)
+HANDOFF.md
