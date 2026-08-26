@@ -26,6 +26,23 @@
 Because nginx proxies `/api` to the backend, the browser sees a **single origin** locally — no CORS
 needed. The frontend is built with the default `VITE_API_BASE_URL=/api/v1`.
 
+## Live environment
+
+| Component | Service | URL |
+|---|---|---|
+| Frontend | Cloudflare Workers (static assets) | https://nba-dashboard.cooper-myton.workers.dev |
+| API | Render (free, Docker) | https://nba-dashboard-eezf.onrender.com |
+| Postgres | Neon | (connection string in Render env) |
+| Redis | Upstash | (connection string in Render env) |
+
+The Render free instance **sleeps after ~15 minutes idle**; the first request then takes ~30-60 s
+to wake. The frontend is static on Cloudflare's edge and is always fast.
+
+Frontend build is configured in `frontend/wrangler.toml` (assets-only Worker, SPA fallback) with
+`VITE_API_BASE_URL` set as a build variable — it is baked in at build time, so changing the API
+origin requires a **rebuild**, not just a redeploy. The API's `CORS_ORIGINS` must list the exact
+frontend origin (no trailing slash).
+
 ## Free hosting stack ($0/month)
 
 | Component | Service | Free-tier notes |
@@ -65,7 +82,8 @@ start-command override is needed** — compose and any PaaS boot identically, an
 field **empty**.
 
 Shell scripts are pinned to LF via `.gitattributes`; a CRLF shebang makes Linux look for an
-interpreter named `/bin/sh` and the container exits 127.
+interpreter named `/bin/sh
+` and the container exits 127.
 
 **To activate the deploy** once a host is provisioned: create a `production` environment in repo
 Settings → Environments, add the required reviewer, and set `RENDER_DEPLOY_HOOK` (the host's deploy
