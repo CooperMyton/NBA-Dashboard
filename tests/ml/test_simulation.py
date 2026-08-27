@@ -12,6 +12,8 @@ from ml.pipeline.features import FeatureBuilder
 from ml.pipeline.inference import Predictor
 from ml.pipeline.simulation import (
     ScheduledGame,
+    SeasonOutcome,
+    aggregate,
     expected_margin,
     make_scorer,
     resolve_play_in,
@@ -201,3 +203,61 @@ def test_simulate_season_wins_sum_to_the_number_of_games() -> None:
         copy.deepcopy(FeatureBuilder()), schedule, lambda _f: 0.5, random.Random(12), conferences
     )
     assert sum(w for w, _ in outcome.records.values()) == len(schedule)
+
+
+def test_aggregate_averages_records_and_rates() -> None:
+    outcomes = [
+        SeasonOutcome(
+            records={1: [60, 20], 2: [20, 60]},
+            seeds={1: 1, 2: 2},
+            playoff_teams={1},
+            conference_champions={1},
+            champion=1,
+        ),
+        SeasonOutcome(
+            records={1: [40, 40], 2: [40, 40]},
+            seeds={1: 2, 2: 1},
+            playoff_teams={1, 2},
+            conference_champions={2},
+            champion=2,
+        ),
+    ]
+    projections = {p.team_id: p for p in aggregate(outcomes)}
+
+    assert projections[1].proj_wins == 50.0
+    assert projections[1].proj_losses == 30.0
+    assert projections[1].make_playoffs_pct == 100.0
+    assert projections[2].make_playoffs_pct == 50.0
+    assert projections[1].win_title_pct == 50.0
+    assert projections[2].win_title_pct == 50.0
+    assert projections[1].avg_seed == 1.5
+
+
+def test_aggregate_title_percentages_sum_to_one_hundred() -> None:
+    outcomes = [
+        SeasonOutcome(
+            records={t: [41, 41] for t in range(1, 5)},
+            seeds={t: t for t in range(1, 5)},
+            playoff_teams={1, 2},
+            conference_champions={1, 2},
+            champion=champ,
+        )
+        for champ in (1, 1, 2, 3)
+    ]
+    total = sum(p.win_title_pct for p in aggregate(outcomes))
+    assert abs(total - 100.0) < 1e-9
+
+
+def test_aggregate_percentiles_span_the_distribution() -> None:
+    outcomes = [
+        SeasonOutcome(
+            records={1: [wins, 82 - wins]},
+            seeds={1: 1},
+            playoff_teams={1},
+            conference_champions={1},
+            champion=1,
+        )
+        for wins in range(30, 60)
+    ]
+    projection = aggregate(outcomes)[0]
+    assert projection.wins_p10 < projection.wins_p50 < projection.wins_p90

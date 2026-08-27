@@ -6,11 +6,13 @@ scored exactly as real ones were. Only the *margin* of a game feeds the features
 not a plausible box score.
 """
 
+import copy
 import math
 import random
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
+from statistics import mean
 from typing import Any
 
 from ml.pipeline.features import FeatureBuilder, GameRecord
@@ -260,3 +262,81 @@ def simulate_season(
         conference_champions=set(finalists),
         champion=champion,
     )
+
+
+@dataclass
+class TeamProjection:
+    """Aggregated projection for one team across many simulated seasons."""
+
+    team_id: int
+    proj_wins: float
+    proj_losses: float
+    wins_p10: float
+    wins_p50: float
+    wins_p90: float
+    make_playoffs_pct: float
+    win_conference_pct: float
+    win_title_pct: float
+    avg_seed: float
+
+
+def _percentile(sorted_values: list[int], fraction: float) -> float:
+    """Nearest-rank percentile. Inputs must already be sorted ascending."""
+    if not sorted_values:
+        return 0.0
+    index = min(len(sorted_values) - 1, max(0, int(round(fraction * (len(sorted_values) - 1)))))
+    return float(sorted_values[index])
+
+
+def aggregate(outcomes: list[SeasonOutcome]) -> list[TeamProjection]:
+    """Reduce simulated seasons to per-team means, percentiles and rates."""
+    runs = len(outcomes)
+    team_ids = sorted({t for outcome in outcomes for t in outcome.records})
+    projections: list[TeamProjection] = []
+
+    for team_id in team_ids:
+        wins = sorted(o.records[team_id][0] for o in outcomes if team_id in o.records)
+        losses = [o.records[team_id][1] for o in outcomes if team_id in o.records]
+        seeds = [o.seeds[team_id] for o in outcomes if team_id in o.seeds]
+        projections.append(
+            TeamProjection(
+                team_id=team_id,
+                proj_wins=mean(wins),
+                proj_losses=mean(losses),
+                wins_p10=_percentile(wins, 0.10),
+                wins_p50=_percentile(wins, 0.50),
+                wins_p90=_percentile(wins, 0.90),
+                make_playoffs_pct=(
+                    100.0 * sum(1 for o in outcomes if team_id in o.playoff_teams) / runs
+                ),
+                win_conference_pct=(
+                    100.0 * sum(1 for o in outcomes if team_id in o.conference_champions) / runs
+                ),
+                win_title_pct=100.0 * sum(1 for o in outcomes if o.champion == team_id) / runs,
+                avg_seed=mean(seeds) if seeds else 0.0,
+            )
+        )
+    return projections
+
+
+def run_simulations(
+    builder: FeatureBuilder,
+    schedule: list[ScheduledGame],
+    predictor: Predictor,
+    conferences: dict[int, str],
+    *,
+    simulations: int,
+    seed: int,
+) -> list[TeamProjection]:
+    """Run ``simulations`` full seasons and aggregate them.
+
+    ``builder`` is treated as immutable seed state — each run gets its own deep copy.
+    """
+    score = make_scorer(predictor)
+    outcomes = [
+        simulate_season(
+            copy.deepcopy(builder), schedule, score, random.Random(seed + run), conferences
+        )
+        for run in range(simulations)
+    ]
+    return aggregate(outcomes)
