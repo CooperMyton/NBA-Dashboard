@@ -9,6 +9,7 @@ from backend.app.models.injury import Injury
 from backend.app.models.model_prediction import ModelPrediction
 from backend.app.models.player import Player
 from backend.app.models.player_stat import PlayerStat
+from backend.app.models.season_projection import SeasonProjection
 from backend.app.models.standing import Standing
 from backend.app.models.team import Team
 from backend.app.models.team_stat import TeamStat
@@ -21,6 +22,7 @@ __all__ = [
     "ModelPrediction",
     "Player",
     "PlayerStat",
+    "SeasonProjection",
     "Standing",
     "Team",
     "TeamStat",
