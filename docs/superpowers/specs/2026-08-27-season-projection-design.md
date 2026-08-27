@@ -23,7 +23,10 @@ numpy rewrite would allow far more simulations, but would duplicate feature logi
 the risk of training and simulation silently diverging. Fidelity beats simulation count here.
 
 The cost is that the job is O(simulations x 1,200 games) at Python speed. Default **2,000
-simulations** (~1% resolution on playoff odds). This is an offline job, never in the request path.
+simulations** (~1% resolution on playoff odds). Measured runtime is **~15 minutes** for the full
+2,000 on the 1,200-game schedule. This is an offline job run on demand, never in the request path
+and not part of the nightly pipeline, so that cost is acceptable; drop `PROJECTION_SIMULATIONS` to
+a few hundred for a faster, noisier refresh.
 
 ### Simulation loop
 
