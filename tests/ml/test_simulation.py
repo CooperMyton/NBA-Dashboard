@@ -15,7 +15,11 @@ from ml.pipeline.simulation import (
     expected_margin,
     make_scorer,
     sample_margin,
+    resolve_play_in,
+    seed_conference,
     simulate_regular_season,
+    simulate_season,
+    simulate_series,
 )
 
 
@@ -143,3 +147,57 @@ def test_simulate_regular_season_is_deterministic_for_a_seed() -> None:
         copy.deepcopy(FeatureBuilder()), schedule, lambda _f: 0.6, random.Random(42)
     )
     assert first == second
+
+
+def test_seed_conference_orders_by_wins() -> None:
+    records = {1: [50, 32], 2: [60, 22], 3: [40, 42]}
+    assert seed_conference(records, [1, 2, 3], random.Random(1)) == [2, 1, 3]
+
+
+def test_seed_conference_breaks_ties_without_crashing() -> None:
+    records = {1: [41, 41], 2: [41, 41], 3: [41, 41]}
+    order = seed_conference(records, [1, 2, 3], random.Random(2))
+    assert sorted(order) == [1, 2, 3]
+
+
+def test_simulate_series_certain_favourite_always_wins() -> None:
+    # Higher seed hosts 1,2,5,7. If home always wins, the series goes the distance and the
+    # higher seed takes game 7, winning 4-3.
+    assert simulate_series(lambda _h, _a: 1.0, 1, 8, random.Random(3)) == 1
+
+
+def test_simulate_series_returns_exactly_one_winner() -> None:
+    winner = simulate_series(lambda _h, _a: 0.0, 1, 8, random.Random(3))
+    assert winner in (1, 8)
+
+
+def test_resolve_play_in_returns_eight_teams_from_ten() -> None:
+    seeds = list(range(1, 16))
+    qualified = resolve_play_in(seeds, lambda _h, _a: 1.0, random.Random(4))
+    assert len(qualified) == 8
+    assert qualified[:6] == [1, 2, 3, 4, 5, 6]
+    assert set(qualified[6:]) <= {7, 8, 9, 10}
+
+
+def test_simulate_season_produces_one_champion_and_sixteen_playoff_teams() -> None:
+    team_ids = list(range(1, 31))
+    conferences = {t: ("East" if t <= 15 else "West") for t in team_ids}
+    schedule = _round_robin(team_ids)
+
+    outcome = simulate_season(
+        copy.deepcopy(FeatureBuilder()), schedule, lambda _f: 0.5, random.Random(9), conferences
+    )
+    assert len(outcome.playoff_teams) == 16
+    assert len(outcome.conference_champions) == 2
+    assert outcome.champion in outcome.conference_champions
+    assert set(outcome.seeds) == set(team_ids)
+
+
+def test_simulate_season_wins_sum_to_the_number_of_games() -> None:
+    team_ids = list(range(1, 31))
+    conferences = {t: ("East" if t <= 15 else "West") for t in team_ids}
+    schedule = _round_robin(team_ids)
+    outcome = simulate_season(
+        copy.deepcopy(FeatureBuilder()), schedule, lambda _f: 0.5, random.Random(12), conferences
+    )
+    assert sum(w for w, _ in outcome.records.values()) == len(schedule)
