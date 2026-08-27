@@ -15,8 +15,12 @@ in a React dashboard. **Designed and built to run at $0/month** on free tiers.
 | **API docs** | https://nba-dashboard-eezf.onrender.com/docs |
 
 Running on free tiers: Cloudflare Workers (static assets) · Render (API) · Neon (Postgres) ·
-Upstash (Redis) · GitHub Actions (CI + nightly ETL). The API sleeps when idle, so the **first
-request after a quiet period takes ~30-60s to wake** — subsequent loads are fast.
+Upstash (Redis) · GitHub Actions (CI, nightly ETL, keep-warm ping).
+
+A scheduled workflow pings the API every 10 minutes between 12:00 and 04:00 UTC, so it stays warm
+through US working and evening hours. Outside that window the free instance sleeps and the first
+request takes ~30-60 s to wake. The window is deliberate: Render allows 750 instance-hours a month
+and a month is ~730 hours, so a round-the-clock ping would consume the whole allowance.
 
 ---
 

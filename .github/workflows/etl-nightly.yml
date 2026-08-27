@@ -26,19 +26,37 @@ jobs:
       BALLDONTLIE_API_KEY: ${{ secrets.BALLDONTLIE_API_KEY }}
       ETL_SEASONS: ${{ github.event.inputs.seasons }}
     steps:
+      # Without the secrets there is nothing to sync and nowhere to write. Skip cleanly rather
+      # than failing a scheduled run every night, which would bury real failures in noise.
+      - name: Check required secrets
+        id: preflight
+        run: |
+          if [ -z "$DATABASE_URL" ] || [ -z "$BALLDONTLIE_API_KEY" ]; then
+            echo "::notice title=ETL skipped::DATABASE_URL and/or BALLDONTLIE_API_KEY are not set." \
+                 "Add them as repository secrets to enable the nightly sync."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.preflight.outputs.configured == 'true'
 
       - name: Install uv
+        if: steps.preflight.outputs.configured == 'true'
         uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
           enable-cache: true
 
       - name: Install dependencies
+        if: steps.preflight.outputs.configured == 'true'
         run: uv sync --frozen
 
       - name: Apply migrations (expand/contract; safe each run)
+        if: steps.preflight.outputs.configured == 'true'
         run: uv run alembic -c backend/alembic.ini upgrade head
 
       - name: Run nightly ETL pipeline
+        if: steps.preflight.outputs.configured == 'true'
         run: uv run python -m etl.pipeline

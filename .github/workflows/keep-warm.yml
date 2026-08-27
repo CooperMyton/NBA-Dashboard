@@ -1,0 +1,33 @@
+name: Keep API warm
+
+# The Render free instance sleeps after ~15 minutes idle, and the cold start costs 30-60 s — an
+# unfortunate first impression for anyone opening the live demo. Pinging the health endpoint every
+# 10 minutes keeps it up.
+#
+# Why a window rather than 24/7: Render's free tier allows 750 instance-hours per month and a month
+# is ~730 hours, so keeping the service awake around the clock would consume nearly the entire
+# allowance and leave no room for a second free service. A 16-hour window costs ~480 hours/month
+# and still covers US working and evening hours, when the demo is realistically opened.
+#
+# Note: GitHub disables scheduled workflows on repositories with no activity for 60 days.
+on:
+  schedule:
+    # Every 10 minutes, 12:00-03:59 UTC (roughly 08:00-23:59 US Eastern).
+    - cron: "*/10 12-23,0-3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: keep-warm
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping health endpoint
+        # --max-time covers a cold start. A failure here means the API is genuinely down, which is
+        # worth surfacing, so this step is deliberately not tolerant of errors.
+        run: |
+          curl -fsS --max-time 120 \
+            https://nba-dashboard-eezf.onrender.com/api/v1/health
