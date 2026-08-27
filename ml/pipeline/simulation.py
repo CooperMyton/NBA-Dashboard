@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
+from ml.pipeline.features import FeatureBuilder, GameRecord
 from ml.pipeline.inference import Predictor
 
 # Points of margin per Elo point of rating difference. 25 is the conventional NBA figure: a
@@ -84,3 +85,49 @@ def make_scorer(predictor: Predictor) -> Callable[[dict[str, float]], float]:
         return 1.0 / (1.0 + math.exp(-total))
 
     return score_fast
+
+
+def simulate_regular_season(
+    builder: FeatureBuilder,
+    schedule: list[ScheduledGame],
+    score: Callable[[dict[str, float]], float],
+    rng: random.Random,
+) -> dict[int, list[int]]:
+    """Simulate one regular season, returning ``{team_id: [wins, losses]}``.
+
+    ``builder`` is mutated as games resolve, so callers must pass a fresh copy per run. Games are
+    played in schedule order; each simulated result is observed so Elo and rolling form evolve
+    exactly as they would during a real season.
+    """
+    records: dict[int, list[int]] = {}
+    for game in schedule:
+        records.setdefault(game.home_team_id, [0, 0])
+        records.setdefault(game.visitor_team_id, [0, 0])
+
+    for game in sorted(schedule, key=lambda g: (g.game_date, g.game_id)):
+        features = builder.features_for(
+            game.season, game.game_date, game.home_team_id, game.visitor_team_id
+        )
+        home_won = rng.random() < score(features)
+        margin = sample_margin(rng, features["home_elo"], features["away_elo"], home_won=home_won)
+        # Only the score *difference* reaches the features, so a nominal base is sufficient.
+        builder.observe(
+            GameRecord(
+                game_id=game.game_id,
+                season=game.season,
+                game_date=game.game_date,
+                home_team_id=game.home_team_id,
+                visitor_team_id=game.visitor_team_id,
+                home_score=100 + margin,
+                visitor_score=100,
+            )
+        )
+        winner, loser = (
+            (game.home_team_id, game.visitor_team_id)
+            if home_won
+            else (game.visitor_team_id, game.home_team_id)
+        )
+        records[winner][0] += 1
+        records[loser][1] += 1
+
+    return records

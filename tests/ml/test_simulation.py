@@ -1,18 +1,21 @@
 """Tests for the season simulation primitives."""
 
+import copy
 import math
 import random
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 import numpy as np
 
+from ml.pipeline.features import FeatureBuilder
 from ml.pipeline.inference import Predictor
 from ml.pipeline.simulation import (
     ScheduledGame,
     expected_margin,
     make_scorer,
     sample_margin,
+    simulate_regular_season,
 )
 
 
@@ -84,3 +87,59 @@ def test_scheduled_game_holds_the_matchup() -> None:
     )
     assert game.home_team_id == 2
     assert game.visitor_team_id == 3
+
+
+def _round_robin(team_ids: list[int], season: int = 2026) -> list[ScheduledGame]:
+    """Home-and-away round robin, one game per day."""
+    games: list[ScheduledGame] = []
+    for home in team_ids:
+        for away in team_ids:
+            if home == away:
+                continue
+            games.append(
+                ScheduledGame(
+                    game_id=len(games) + 1,
+                    season=season,
+                    game_date=date(2026, 10, 20) + timedelta(days=len(games)),
+                    home_team_id=home,
+                    visitor_team_id=away,
+                )
+            )
+    return games
+
+
+def test_simulate_regular_season_gives_every_team_its_full_slate() -> None:
+    schedule = _round_robin([1, 2, 3, 4])
+    records = simulate_regular_season(
+        copy.deepcopy(FeatureBuilder()), schedule, lambda _f: 0.5, random.Random(5)
+    )
+    assert set(records) == {1, 2, 3, 4}
+    for wins, losses in records.values():
+        assert wins + losses == 6
+
+
+def test_simulate_regular_season_certain_home_wins_produce_home_sweeps() -> None:
+    schedule = [
+        ScheduledGame(
+            game_id=1, season=2026, game_date=date(2026, 10, 20), home_team_id=1, visitor_team_id=2
+        ),
+        ScheduledGame(
+            game_id=2, season=2026, game_date=date(2026, 10, 22), home_team_id=1, visitor_team_id=2
+        ),
+    ]
+    records = simulate_regular_season(
+        copy.deepcopy(FeatureBuilder()), schedule, lambda _f: 1.0, random.Random(1)
+    )
+    assert records[1] == [2, 0]
+    assert records[2] == [0, 2]
+
+
+def test_simulate_regular_season_is_deterministic_for_a_seed() -> None:
+    schedule = _round_robin([1, 2, 3])
+    first = simulate_regular_season(
+        copy.deepcopy(FeatureBuilder()), schedule, lambda _f: 0.6, random.Random(42)
+    )
+    second = simulate_regular_season(
+        copy.deepcopy(FeatureBuilder()), schedule, lambda _f: 0.6, random.Random(42)
+    )
+    assert first == second
