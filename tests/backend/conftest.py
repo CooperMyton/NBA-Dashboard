@@ -28,6 +28,7 @@ from backend.app.models import Base  # noqa: E402
 from backend.app.models.game import Game  # noqa: E402
 from backend.app.models.model_prediction import ModelPrediction  # noqa: E402
 from backend.app.models.player import Player  # noqa: E402
+from backend.app.models.season_projection import SeasonProjection  # noqa: E402
 from backend.app.models.standing import Standing  # noqa: E402
 from backend.app.models.team import Team  # noqa: E402
 from backend.app.models.user import User  # noqa: E402
@@ -141,6 +142,40 @@ async def _seed(session: AsyncSession) -> None:
             predicted_at=datetime(2024, 1, 15, 12, 0, tzinfo=UTC),
             settled_at=None,
         )
+    )
+    session.add_all(
+        [
+            SeasonProjection(
+                season=2026,
+                team_id=bos.id,
+                model_version="v1",
+                proj_wins=52.5,
+                proj_losses=27.5,
+                wins_p10=46.0,
+                wins_p50=53.0,
+                wins_p90=59.0,
+                make_playoffs_pct=91.0,
+                win_conference_pct=28.0,
+                win_title_pct=15.0,
+                avg_seed=2.3,
+                simulations=100,
+            ),
+            SeasonProjection(
+                season=2026,
+                team_id=lal.id,
+                model_version="v1",
+                proj_wins=41.0,
+                proj_losses=39.0,
+                wins_p10=34.0,
+                wins_p50=41.0,
+                wins_p90=48.0,
+                make_playoffs_pct=52.0,
+                win_conference_pct=9.0,
+                win_title_pct=4.0,
+                avg_seed=7.1,
+                simulations=100,
+            ),
+        ]
     )
     session.add(User(name="test-client", api_key_hash=hash_api_key(API_KEY), is_active=True))
     await session.commit()

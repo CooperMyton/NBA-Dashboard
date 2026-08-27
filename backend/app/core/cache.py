@@ -14,6 +14,7 @@ from redis.asyncio import Redis
 TEAMS_PREFIX = "teams:"
 STANDINGS_PREFIX = "standings:"
 PREDICTIONS_PREFIX = "predictions:"
+PROJECTIONS_PREFIX = "projections:"
 
 
 async def invalidate_prefixes(redis: Redis, prefixes: Sequence[str]) -> int:
