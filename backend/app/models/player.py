@@ -19,6 +19,11 @@ class Player(TimestampMixin, Base):
     jersey_number: Mapped[str | None] = mapped_column(String(8))
     college: Mapped[str | None] = mapped_column(String(128))
     country: Mapped[str | None] = mapped_column(String(64))
+    # NBA's own player id, populated by the roster sync. Lets later syncs join on a stable key
+    # instead of repeating name matching.
+    nba_player_id: Mapped[int | None] = mapped_column(unique=True, index=True)
+    # The season this player is rostered for (start-year convention). Null for historical players.
+    roster_season: Mapped[int | None] = mapped_column(index=True)
     team_id: Mapped[int | None] = mapped_column(
         ForeignKey("teams.id", ondelete="SET NULL"), index=True
     )

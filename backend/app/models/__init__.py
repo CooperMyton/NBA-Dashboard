@@ -8,6 +8,8 @@ from backend.app.models.game import Game
 from backend.app.models.injury import Injury
 from backend.app.models.model_prediction import ModelPrediction
 from backend.app.models.player import Player
+from backend.app.models.player_insight import PlayerInsight
+from backend.app.models.player_season_stat import PlayerSeasonStat
 from backend.app.models.player_stat import PlayerStat
 from backend.app.models.season_projection import SeasonProjection
 from backend.app.models.standing import Standing
@@ -21,6 +23,8 @@ __all__ = [
     "Injury",
     "ModelPrediction",
     "Player",
+    "PlayerInsight",
+    "PlayerSeasonStat",
     "PlayerStat",
     "SeasonProjection",
     "Standing",
