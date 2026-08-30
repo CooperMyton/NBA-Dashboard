@@ -1,0 +1,263 @@
+"""Tests for the season simulation primitives."""
+
+import copy
+import math
+import random
+from datetime import date, timedelta
+from typing import Any
+
+import numpy as np
+
+from ml.pipeline.features import FeatureBuilder
+from ml.pipeline.inference import Predictor
+from ml.pipeline.simulation import (
+    ScheduledGame,
+    SeasonOutcome,
+    aggregate,
+    expected_margin,
+    make_scorer,
+    resolve_play_in,
+    sample_margin,
+    seed_conference,
+    simulate_regular_season,
+    simulate_season,
+    simulate_series,
+)
+
+
+def test_expected_margin_favours_the_stronger_home_team() -> None:
+    # Equal ratings still favour home by the home-court bonus (100 Elo / 25 = 4 points).
+    assert expected_margin(1500.0, 1500.0) == 4.0
+    assert expected_margin(1600.0, 1500.0) > expected_margin(1500.0, 1600.0)
+
+
+def test_sample_margin_sign_always_matches_the_winner() -> None:
+    rng = random.Random(7)
+    for _ in range(200):
+        assert sample_margin(rng, 1500.0, 1700.0, home_won=True) > 0
+        assert sample_margin(rng, 1700.0, 1500.0, home_won=False) < 0
+
+
+def test_sample_margin_is_never_a_draw() -> None:
+    rng = random.Random(11)
+    margins = [sample_margin(rng, 1500.0, 1500.0, home_won=True) for _ in range(500)]
+    assert all(m >= 1 for m in margins)
+
+
+def test_sample_margin_is_deterministic_for_a_seed() -> None:
+    a = [sample_margin(random.Random(3), 1550.0, 1500.0, home_won=True) for _ in range(5)]
+    b = [sample_margin(random.Random(3), 1550.0, 1500.0, home_won=True) for _ in range(5)]
+    assert a == b
+
+
+def test_stronger_teams_win_by_more_on_average() -> None:
+    rng = random.Random(19)
+    blowout = [sample_margin(rng, 1800.0, 1400.0, home_won=True) for _ in range(2000)]
+    close = [sample_margin(rng, 1500.0, 1500.0, home_won=True) for _ in range(2000)]
+    assert sum(blowout) / len(blowout) > sum(close) / len(close)
+
+
+class _FakeLogisticModel:
+    """Mimics the sklearn LogisticRegression surface the fast path reads."""
+
+    def __init__(self) -> None:
+        self.coef_ = [[0.5, -0.25]]
+        self.intercept_ = [0.1]
+
+    def predict_proba(self, matrix: Any) -> Any:
+        # Predictor slices the result as ``[:, 1]``, so this must be a numpy array.
+        rows = []
+        for row in matrix:
+            z = 0.1 + 0.5 * float(row[0]) - 0.25 * float(row[1])
+            p = 1.0 / (1.0 + math.exp(-z))
+            rows.append([1.0 - p, p])
+        return np.asarray(rows)
+
+
+def test_make_scorer_fast_path_matches_predict_proba() -> None:
+    predictor = Predictor(
+        _FakeLogisticModel(),
+        version=1,
+        feature_names=["a", "b"],
+        model_version="fake.pkl",
+    )
+    score = make_scorer(predictor)
+    for features in ({"a": 1.0, "b": 2.0}, {"a": -3.0, "b": 0.5}, {"a": 0.0, "b": 0.0}):
+        expected = predictor.predict_proba([features])[0]
+        assert abs(score(features) - expected) < 1e-9
+
+
+def test_scheduled_game_holds_the_matchup() -> None:
+    game = ScheduledGame(
+        game_id=1, season=2026, game_date=date(2026, 10, 20), home_team_id=2, visitor_team_id=3
+    )
+    assert game.home_team_id == 2
+    assert game.visitor_team_id == 3
+
+
+def _round_robin(team_ids: list[int], season: int = 2026) -> list[ScheduledGame]:
+    """Home-and-away round robin, one game per day."""
+    games: list[ScheduledGame] = []
+    for home in team_ids:
+        for away in team_ids:
+            if home == away:
+                continue
+            games.append(
+                ScheduledGame(
+                    game_id=len(games) + 1,
+                    season=season,
+                    game_date=date(2026, 10, 20) + timedelta(days=len(games)),
+                    home_team_id=home,
+                    visitor_team_id=away,
+                )
+            )
+    return games
+
+
+def test_simulate_regular_season_gives_every_team_its_full_slate() -> None:
+    schedule = _round_robin([1, 2, 3, 4])
+    records = simulate_regular_season(
+        copy.deepcopy(FeatureBuilder()), schedule, lambda _f: 0.5, random.Random(5)
+    )
+    assert set(records) == {1, 2, 3, 4}
+    for wins, losses in records.values():
+        assert wins + losses == 6
+
+
+def test_simulate_regular_season_certain_home_wins_produce_home_sweeps() -> None:
+    schedule = [
+        ScheduledGame(
+            game_id=1, season=2026, game_date=date(2026, 10, 20), home_team_id=1, visitor_team_id=2
+        ),
+        ScheduledGame(
+            game_id=2, season=2026, game_date=date(2026, 10, 22), home_team_id=1, visitor_team_id=2
+        ),
+    ]
+    records = simulate_regular_season(
+        copy.deepcopy(FeatureBuilder()), schedule, lambda _f: 1.0, random.Random(1)
+    )
+    assert records[1] == [2, 0]
+    assert records[2] == [0, 2]
+
+
+def test_simulate_regular_season_is_deterministic_for_a_seed() -> None:
+    schedule = _round_robin([1, 2, 3])
+    first = simulate_regular_season(
+        copy.deepcopy(FeatureBuilder()), schedule, lambda _f: 0.6, random.Random(42)
+    )
+    second = simulate_regular_season(
+        copy.deepcopy(FeatureBuilder()), schedule, lambda _f: 0.6, random.Random(42)
+    )
+    assert first == second
+
+
+def test_seed_conference_orders_by_wins() -> None:
+    records = {1: [50, 32], 2: [60, 22], 3: [40, 42]}
+    assert seed_conference(records, [1, 2, 3], random.Random(1)) == [2, 1, 3]
+
+
+def test_seed_conference_breaks_ties_without_crashing() -> None:
+    records = {1: [41, 41], 2: [41, 41], 3: [41, 41]}
+    order = seed_conference(records, [1, 2, 3], random.Random(2))
+    assert sorted(order) == [1, 2, 3]
+
+
+def test_simulate_series_certain_favourite_always_wins() -> None:
+    # Higher seed hosts 1,2,5,7. If home always wins, the series goes the distance and the
+    # higher seed takes game 7, winning 4-3.
+    assert simulate_series(lambda _h, _a: 1.0, 1, 8, random.Random(3)) == 1
+
+
+def test_simulate_series_returns_exactly_one_winner() -> None:
+    winner = simulate_series(lambda _h, _a: 0.0, 1, 8, random.Random(3))
+    assert winner in (1, 8)
+
+
+def test_resolve_play_in_returns_eight_teams_from_ten() -> None:
+    seeds = list(range(1, 16))
+    qualified = resolve_play_in(seeds, lambda _h, _a: 1.0, random.Random(4))
+    assert len(qualified) == 8
+    assert qualified[:6] == [1, 2, 3, 4, 5, 6]
+    assert set(qualified[6:]) <= {7, 8, 9, 10}
+
+
+def test_simulate_season_produces_one_champion_and_sixteen_playoff_teams() -> None:
+    team_ids = list(range(1, 31))
+    conferences = {t: ("East" if t <= 15 else "West") for t in team_ids}
+    schedule = _round_robin(team_ids)
+
+    outcome = simulate_season(
+        copy.deepcopy(FeatureBuilder()), schedule, lambda _f: 0.5, random.Random(9), conferences
+    )
+    assert len(outcome.playoff_teams) == 16
+    assert len(outcome.conference_champions) == 2
+    assert outcome.champion in outcome.conference_champions
+    assert set(outcome.seeds) == set(team_ids)
+
+
+def test_simulate_season_wins_sum_to_the_number_of_games() -> None:
+    team_ids = list(range(1, 31))
+    conferences = {t: ("East" if t <= 15 else "West") for t in team_ids}
+    schedule = _round_robin(team_ids)
+    outcome = simulate_season(
+        copy.deepcopy(FeatureBuilder()), schedule, lambda _f: 0.5, random.Random(12), conferences
+    )
+    assert sum(w for w, _ in outcome.records.values()) == len(schedule)
+
+
+def test_aggregate_averages_records_and_rates() -> None:
+    outcomes = [
+        SeasonOutcome(
+            records={1: [60, 20], 2: [20, 60]},
+            seeds={1: 1, 2: 2},
+            playoff_teams={1},
+            conference_champions={1},
+            champion=1,
+        ),
+        SeasonOutcome(
+            records={1: [40, 40], 2: [40, 40]},
+            seeds={1: 2, 2: 1},
+            playoff_teams={1, 2},
+            conference_champions={2},
+            champion=2,
+        ),
+    ]
+    projections = {p.team_id: p for p in aggregate(outcomes)}
+
+    assert projections[1].proj_wins == 50.0
+    assert projections[1].proj_losses == 30.0
+    assert projections[1].make_playoffs_pct == 100.0
+    assert projections[2].make_playoffs_pct == 50.0
+    assert projections[1].win_title_pct == 50.0
+    assert projections[2].win_title_pct == 50.0
+    assert projections[1].avg_seed == 1.5
+
+
+def test_aggregate_title_percentages_sum_to_one_hundred() -> None:
+    outcomes = [
+        SeasonOutcome(
+            records={t: [41, 41] for t in range(1, 5)},
+            seeds={t: t for t in range(1, 5)},
+            playoff_teams={1, 2},
+            conference_champions={1, 2},
+            champion=champ,
+        )
+        for champ in (1, 1, 2, 3)
+    ]
+    total = sum(p.win_title_pct for p in aggregate(outcomes))
+    assert abs(total - 100.0) < 1e-9
+
+
+def test_aggregate_percentiles_span_the_distribution() -> None:
+    outcomes = [
+        SeasonOutcome(
+            records={1: [wins, 82 - wins]},
+            seeds={1: 1},
+            playoff_teams={1},
+            conference_champions={1},
+            champion=1,
+        )
+        for wins in range(30, 60)
+    ]
+    projection = aggregate(outcomes)[0]
+    assert projection.wins_p10 < projection.wins_p50 < projection.wins_p90

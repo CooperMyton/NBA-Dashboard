@@ -6,6 +6,7 @@ const NAV = [
   { to: "/players", label: "Players", end: false },
   { to: "/model-lab", label: "Model Lab", end: false },
   { to: "/predictions", label: "Predictions", end: false },
+  { to: "/projection", label: "Projection", end: false },
 ];
 
 export default function Layout() {

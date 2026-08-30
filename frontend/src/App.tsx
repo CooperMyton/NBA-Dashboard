@@ -6,6 +6,7 @@ import Dashboard from "./pages/Dashboard";
 import ModelLab from "./pages/ModelLab";
 import Players from "./pages/Players";
 import PredictionTracker from "./pages/PredictionTracker";
+import SeasonProjection from "./pages/SeasonProjection";
 import TeamDetail from "./pages/TeamDetail";
 import Teams from "./pages/Teams";
 
@@ -24,6 +25,7 @@ const router = createBrowserRouter([
       { path: "players", element: <Players /> },
       { path: "model-lab", element: <ModelLab /> },
       { path: "predictions", element: <PredictionTracker /> },
+      { path: "projection", element: <SeasonProjection /> },
       { path: "*", element: <Navigate to="/" replace /> },
     ],
   },

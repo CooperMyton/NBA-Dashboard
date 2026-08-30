@@ -78,3 +78,20 @@ export interface ModelRegistry {
   active: number | null;
   versions: ModelVersion[];
 }
+
+export interface Projection {
+  id: number;
+  season: number;
+  team_id: number;
+  model_version: string;
+  proj_wins: number;
+  proj_losses: number;
+  wins_p10: number;
+  wins_p50: number;
+  wins_p90: number;
+  make_playoffs_pct: number;
+  win_conference_pct: number;
+  win_title_pct: number;
+  avg_seed: number;
+  simulations: number;
+}
