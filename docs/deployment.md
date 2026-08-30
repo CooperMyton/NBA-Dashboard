@@ -95,6 +95,20 @@ hook URL) as an environment secret. No other change needed.
 - **Expand/contract** pattern so the previous image stays compatible with the new schema for one
   release cycle.
 
+### Never apply a migration from an unmerged branch
+
+Applying a branch's migration to the shared database stamps `alembic_version` with a revision id
+that exists only on that branch. Every image built from `main` then fails on boot with
+`Can't locate revision identified by '<rev>'`, exits non-zero, and crash-loops — the API is fully
+down until the migration reaches `main`.
+
+This happened once, on 2026-08-27, and took the deployed API offline for three days. Order of
+operations: **merge first, deploy second, and let the deploy run the migration.** If a migration
+must be applied out of band, it has to land on `main` in the same change.
+
+Recovery, if it happens again: either merge the branch so the image carries the migration, or
+`alembic downgrade` the database back to the revision `main` knows (which discards the new table).
+
 ## Rollback
 
 - Previous image tag redeployable via one workflow dispatch. Because migrations are
