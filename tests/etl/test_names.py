@@ -56,3 +56,14 @@ def test_match_players_never_assigns_one_db_player_twice() -> None:
     matched, unmatched = match_players(nba, db)
     assert list(matched.values()) == [90]
     assert len(unmatched) == 1
+
+
+def test_normalize_folds_letters_that_do_not_decompose() -> None:
+    assert normalize_name("Đorđe") == "dorde"
+    assert normalize_name("Robert Lewandowski".replace("L", "Ł", 1)) == ("robert lewandowski")
+    assert normalize_name("Kjøbing") == "kjobing"
+
+
+def test_normalize_still_folds_decomposing_accents() -> None:
+    assert normalize_name("Luka Dončić") == "luka doncic"
+    assert normalize_name("Kristaps Porziņģis") == "kristaps porzingis"

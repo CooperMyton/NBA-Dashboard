@@ -11,10 +11,32 @@ import unicodedata
 
 _SUFFIXES = re.compile(r"\b(jr|sr|ii|iii|iv|v)\b")
 
+# Translation table for characters that don't decompose with NFKD normalization
+_CHAR_MAP = str.maketrans(
+    {
+        "ł": "l",
+        "Ł": "L",
+        "đ": "d",
+        "Đ": "D",
+        "ø": "o",
+        "Ø": "O",
+        "ð": "d",
+        "Ð": "D",
+        "þ": "th",
+        "Þ": "Th",
+        "ß": "ss",
+        "æ": "ae",
+        "Æ": "Ae",
+        "œ": "oe",
+        "Œ": "Oe",
+    }
+)
+
 
 def normalize_name(value: str) -> str:
     """Lowercase, strip accents and punctuation, and drop generational suffixes."""
-    folded = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
+    folded = value.translate(_CHAR_MAP)
+    folded = unicodedata.normalize("NFKD", folded).encode("ascii", "ignore").decode()
     folded = folded.lower().replace(".", "").replace("'", "").replace("-", " ")
     folded = _SUFFIXES.sub("", folded)
     return " ".join(folded.split())
