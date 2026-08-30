@@ -100,7 +100,9 @@ on 5.2 attempts" rather than a bare label.
   This route **must be declared before** `GET /players/{id}`. FastAPI matches in declaration order,
   so a later declaration would send `/players/insights` to the `{id}` handler and fail to parse
   "insights" as an integer, returning 422.
-- `GET /api/v1/teams/{id}` roster returns current players with season stats and any insight.
+- The team detail roster needs no new endpoint. The page already lists players by team, so it
+  passes `active=true` to `/players` and reads flags from the insights endpoint, composing the
+  two client-side rather than widening the teams response.
 
 Standard `{data, meta}` envelope. Business logic in services; routers stay thin.
 
@@ -122,7 +124,9 @@ Loading and error states throughout.
 - API filtering and contract
 - Pages render with mocked data
 
-Fixtures are recorded `nba_api` payloads; no test performs network access.
+Tests construct provider dataclasses directly and inject them into the job, so no test imports
+`nba_api` or performs network access. Only the pure payload-parsing helpers are unit-tested
+against literal row dicts.
 
 ## Out of scope
 
