@@ -14,11 +14,15 @@ from collections.abc import AsyncIterator
 import httpx
 import pytest
 import pytest_asyncio
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from backend.app.api.deps import Pagination
 from backend.app.models.player import Player
 from backend.app.models.player_insight import PlayerInsight
+from backend.app.models.player_season_stat import PlayerSeasonStat
 from backend.app.models.team import Team
+from backend.app.services import players as players_service
 from tests.backend.conftest import build_test_client, build_test_db
 
 
@@ -125,3 +129,93 @@ async def test_get_player_by_id_still_works(client, seeded):
     response = await client.get(f"/api/v1/players/{active.id}")
     assert response.status_code == 200
     assert response.json()["data"]["last_name"] == "Doncic"
+
+
+@pytest.fixture
+async def seeded_with_stats(session, seeded):
+    active, retired = seeded
+    session.add_all(
+        [
+            PlayerSeasonStat(
+                player_id=active.id,
+                season=2024,
+                team_id=active.team_id,
+                games_played=60,
+                minutes=30.0,
+                points=20.0,
+                rebounds=5.0,
+                assists=4.0,
+                fg3_pct=0.35,
+                fg3a=5.0,
+                ts_pct=0.55,
+                usage_pct=0.25,
+            ),
+            PlayerSeasonStat(
+                player_id=active.id,
+                season=2025,
+                team_id=active.team_id,
+                games_played=70,
+                minutes=34.5,
+                points=28.6,
+                rebounds=8.2,
+                assists=8.8,
+                fg3_pct=0.38,
+                fg3a=7.0,
+                ts_pct=0.588,
+                usage_pct=0.31,
+            ),
+        ]
+    )
+    await session.commit()
+    return active, retired
+
+
+async def test_get_player_returns_highest_season_stats(client, seeded_with_stats):
+    active, _ = seeded_with_stats
+    response = await client.get(f"/api/v1/players/{active.id}")
+    assert response.status_code == 200
+    stats = response.json()["data"]["latest_stats"]
+    assert stats is not None
+    assert stats["season"] == 2025
+    assert stats["games_played"] == 70
+    assert stats["minutes"] == 34.5
+    assert stats["points"] == 28.6
+    assert stats["rebounds"] == 8.2
+    assert stats["assists"] == 8.8
+    assert stats["ts_pct"] == 0.588
+    assert stats["usage_pct"] == 0.31
+
+
+async def test_get_player_without_stats_returns_null(client, seeded):
+    _, retired = seeded
+    response = await client.get(f"/api/v1/players/{retired.id}")
+    assert response.status_code == 200
+    assert response.json()["data"]["latest_stats"] is None
+
+
+async def test_list_players_attaches_correct_stats_per_player(client, seeded_with_stats):
+    response = await client.get("/api/v1/players")
+    assert response.status_code == 200
+    rows = {row["last_name"]: row for row in response.json()["data"]}
+    assert rows["Doncic"]["latest_stats"]["season"] == 2025
+    assert rows["Doncic"]["latest_stats"]["points"] == 28.6
+    assert rows["Abdul-Jabbar"]["latest_stats"] is None
+
+
+async def test_list_players_fetches_stats_in_a_single_query(session, seeded_with_stats):
+    """Guards against N+1: one page of players must issue exactly one stats query, not one
+    per player, regardless of how many players are on the page."""
+    queries: list[str] = []
+    engine = session.bind.sync_engine
+
+    def _record(conn, cursor, statement, parameters, context, executemany):
+        queries.append(statement)
+
+    event.listen(engine, "before_cursor_execute", _record)
+    try:
+        await players_service.list_players(session, page=Pagination(limit=25, offset=0))
+    finally:
+        event.remove(engine, "before_cursor_execute", _record)
+
+    stat_queries = [q for q in queries if "player_season_stats" in q]
+    assert len(stat_queries) == 1

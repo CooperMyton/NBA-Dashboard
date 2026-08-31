@@ -8,8 +8,13 @@ import { usePlayerInsights } from "../hooks/usePlayerInsights";
 import { usePlayers } from "../hooks/usePlayers";
 import { useTeams } from "../hooks/useTeams";
 import { DEFAULT_SEASON } from "../lib/constants";
-import { formatSeason } from "../lib/format";
+import { formatPct } from "../lib/format";
 import { teamColor } from "../lib/teamColors";
+
+/** Renders one decimal place, or an em dash when the player has no stat line. */
+function statCell(value: number | undefined, digits = 1): string {
+  return value === undefined ? "—" : value.toFixed(digits);
+}
 
 const PAGE_SIZE = 25;
 
@@ -69,15 +74,50 @@ export default function Players() {
     { key: "team", header: "Team", render: (p) => (p.team_id ? (teamById.get(p.team_id) ?? "—") : "FA") },
     { key: "college", header: "College", render: (p) => p.college ?? "—" },
     { key: "country", header: "Country", render: (p) => p.country ?? "—" },
-    ...(activeOnly
-      ? [
-          {
-            key: "season",
-            header: "Season",
-            render: (p: Player) => (p.roster_season ? formatSeason(p.roster_season) : "—"),
-          } satisfies Column<Player>,
-        ]
-      : []),
+    {
+      key: "gp",
+      header: "GP",
+      align: "right",
+      render: (p) => (
+        <span className="tabular">
+          {p.latest_stats ? p.latest_stats.games_played : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "min",
+      header: "MIN",
+      align: "right",
+      render: (p) => <span className="tabular">{statCell(p.latest_stats?.minutes)}</span>,
+    },
+    {
+      key: "pts",
+      header: "PTS",
+      align: "right",
+      render: (p) => <span className="tabular">{statCell(p.latest_stats?.points)}</span>,
+    },
+    {
+      key: "reb",
+      header: "REB",
+      align: "right",
+      render: (p) => <span className="tabular">{statCell(p.latest_stats?.rebounds)}</span>,
+    },
+    {
+      key: "ast",
+      header: "AST",
+      align: "right",
+      render: (p) => <span className="tabular">{statCell(p.latest_stats?.assists)}</span>,
+    },
+    {
+      key: "ts",
+      header: "TS%",
+      align: "right",
+      render: (p) => (
+        <span className="tabular">
+          {p.latest_stats ? formatPct(p.latest_stats.ts_pct) : "—"}
+        </span>
+      ),
+    },
   ];
 
   return (
