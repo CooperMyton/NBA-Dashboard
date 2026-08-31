@@ -1,17 +1,23 @@
 import { useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
 
-import type { Game, Player } from "../api/types";
+import type { Game, Player, PlayerInsight } from "../api/types";
 import { DataTable, type Column } from "../components/DataTable";
 import { QueryState } from "../components/QueryState";
 import { Card, EmptyState, Stat } from "../components/ui";
 import { useGames } from "../hooks/useGames";
+import { usePlayerInsights } from "../hooks/usePlayerInsights";
 import { usePlayers } from "../hooks/usePlayers";
 import { useStandings } from "../hooks/useStandings";
 import { useTeam, useTeams } from "../hooks/useTeams";
 import { DEFAULT_SEASON } from "../lib/constants";
 import { formatDate, formatPct, formatSeason } from "../lib/format";
 import { teamColor } from "../lib/teamColors";
+
+/** Renders one decimal place, or an em dash when the player has no stat line. */
+function statCell(value: number | undefined, digits = 1): string {
+  return value === undefined ? "—" : value.toFixed(digits);
+}
 
 export default function TeamDetail() {
   const { id } = useParams();
@@ -21,7 +27,8 @@ export default function TeamDetail() {
   const teams = useTeams({ limit: 100 });
   const standings = useStandings({ season: DEFAULT_SEASON, limit: 100 });
   const games = useGames({ season: DEFAULT_SEASON, team_id: teamId, order: "desc", limit: 10 });
-  const players = usePlayers({ team_id: teamId, limit: 30 });
+  const players = usePlayers({ team_id: teamId, active: true, limit: 30 });
+  const insights = usePlayerInsights({ season: DEFAULT_SEASON });
 
   const teamAbbr = useMemo(
     () => new Map((teams.data?.data ?? []).map((t) => [t.id, t.abbreviation])),
@@ -29,19 +36,83 @@ export default function TeamDetail() {
   );
   const standing = (standings.data?.data ?? []).find((s) => s.team_id === teamId);
 
+  const insightByPlayer = useMemo(
+    () => new Map((insights.data?.data ?? []).map((i) => [i.player_id, i])),
+    [insights.data],
+  );
+
   const rosterColumns: Column<Player>[] = [
     {
       key: "name",
       header: "Player",
-      render: (p) => (
-        <span className="font-medium">
-          {p.first_name} {p.last_name}
-        </span>
-      ),
+      render: (p) => {
+        const insight: PlayerInsight | undefined = insightByPlayer.get(p.id);
+        return (
+          <span className="font-medium">
+            {p.first_name} {p.last_name}
+            {insight ? (
+              <span
+                title={insight.detail}
+                className={
+                  insight.kind === "breakout"
+                    ? "ml-2 rounded px-1.5 py-0.5 text-xs font-semibold text-win ring-1 ring-win/40"
+                    : "ml-2 rounded px-1.5 py-0.5 text-xs font-semibold text-loss ring-1 ring-loss/40"
+                }
+              >
+                {insight.kind}
+              </span>
+            ) : null}
+          </span>
+        );
+      },
     },
     { key: "pos", header: "Pos", render: (p) => p.position ?? "—" },
     { key: "college", header: "College", render: (p) => p.college ?? "—" },
     { key: "country", header: "Country", render: (p) => p.country ?? "—" },
+    {
+      key: "gp",
+      header: "GP",
+      align: "right",
+      render: (p) => (
+        <span className="tabular">
+          {p.latest_stats ? p.latest_stats.games_played : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "min",
+      header: "MIN",
+      align: "right",
+      render: (p) => <span className="tabular">{statCell(p.latest_stats?.minutes)}</span>,
+    },
+    {
+      key: "pts",
+      header: "PTS",
+      align: "right",
+      render: (p) => <span className="tabular">{statCell(p.latest_stats?.points)}</span>,
+    },
+    {
+      key: "reb",
+      header: "REB",
+      align: "right",
+      render: (p) => <span className="tabular">{statCell(p.latest_stats?.rebounds)}</span>,
+    },
+    {
+      key: "ast",
+      header: "AST",
+      align: "right",
+      render: (p) => <span className="tabular">{statCell(p.latest_stats?.assists)}</span>,
+    },
+    {
+      key: "ts",
+      header: "TS%",
+      align: "right",
+      render: (p) => (
+        <span className="tabular">
+          {p.latest_stats ? formatPct(p.latest_stats.ts_pct) : "—"}
+        </span>
+      ),
+    },
   ];
 
   const gameLine = (g: Game): string => {
@@ -116,7 +187,7 @@ export default function TeamDetail() {
                   </QueryState>
                 </Card>
 
-                <Card title="Roster">
+                <Card title="Current roster">
                   <QueryState query={players}>
                     {(page) =>
                       page.data.length === 0 ? (
