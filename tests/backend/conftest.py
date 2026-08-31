@@ -11,7 +11,7 @@ os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 os.environ.setdefault("BALLDONTLIE_API_KEY", "test")
 
 import pathlib  # noqa: E402
-from collections.abc import AsyncIterator  # noqa: E402
+from collections.abc import AsyncIterator, Awaitable, Callable  # noqa: E402
 from datetime import UTC, date, datetime  # noqa: E402
 
 import httpx  # noqa: E402
@@ -181,16 +181,33 @@ async def _seed(session: AsyncSession) -> None:
     await session.commit()
 
 
-@pytest_asyncio.fixture
-async def client(tmp_path: pathlib.Path) -> AsyncIterator[httpx.AsyncClient]:
+async def build_test_db(
+    tmp_path: pathlib.Path,
+    seed: Callable[[AsyncSession], Awaitable[None]] | None = None,
+) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
+    """Shared per-test-DB factory: a fresh SQLite file, tables created, optionally seeded.
+
+    Reused by both the shared `client` fixture below (seeded with `_seed`, giving every other
+    backend test file its usual two teams/players/game/etc.) and `test_player_insights_api.py`'s
+    module-local fixtures (unseeded, since its own `seeded` fixture needs a bare database).
+    """
     db_path = tmp_path / "api_test.db"
     engine = create_async_engine(f"sqlite+aiosqlite:///{db_path.as_posix()}")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    async with maker() as seed_session:
-        await _seed(seed_session)
+    if seed is not None:
+        async with maker() as seed_session:
+            await seed(seed_session)
+    yield maker
+    await engine.dispose()
 
+
+async def build_test_client(
+    maker: async_sessionmaker[AsyncSession],
+) -> AsyncIterator[httpx.AsyncClient]:
+    """Shared client-wiring factory: an httpx client with DB/Redis dependencies overridden onto
+    `maker` (a sessionmaker from `build_test_db`) and a fake Redis, cleaned up on teardown."""
     from backend.app.api.deps import redis_dep
     from backend.app.db.session import get_session
     from backend.main import app
@@ -213,4 +230,17 @@ async def client(tmp_path: pathlib.Path) -> AsyncIterator[httpx.AsyncClient]:
 
     app.dependency_overrides.clear()
     await fake_redis.aclose()
-    await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def _db_maker(tmp_path: pathlib.Path) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
+    async for maker in build_test_db(tmp_path, seed=_seed):
+        yield maker
+
+
+@pytest_asyncio.fixture
+async def client(
+    _db_maker: async_sessionmaker[AsyncSession],
+) -> AsyncIterator[httpx.AsyncClient]:
+    async for test_client in build_test_client(_db_maker):
+        yield test_client
