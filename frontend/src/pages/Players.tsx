@@ -1,17 +1,42 @@
 import { useMemo, useState } from "react";
 
-import type { Player } from "../api/types";
+import type { Player, PlayerInsight } from "../api/types";
 import { DataTable, type Column } from "../components/DataTable";
-import { EmptyState, PageHeader } from "../components/ui";
+import { Card, EmptyState, PageHeader, SectionTitle, TeamMark } from "../components/ui";
 import { QueryState } from "../components/QueryState";
+import { usePlayerInsights } from "../hooks/usePlayerInsights";
 import { usePlayers } from "../hooks/usePlayers";
 import { useTeams } from "../hooks/useTeams";
+import { DEFAULT_SEASON } from "../lib/constants";
+import { formatSeason } from "../lib/format";
+import { teamColor } from "../lib/teamColors";
 
 const PAGE_SIZE = 25;
+
+const INSIGHT_SECTIONS = [
+  { title: "Primed to break out", kind: "breakout" as const },
+  { title: "Regression candidates", kind: "regression" as const },
+];
+
+/** One breakout/regression candidate row, colour-tagged with its team. */
+function InsightRow({ insight }: { insight: PlayerInsight }) {
+  return (
+    <li className="py-2">
+      <div className="flex items-center gap-2">
+        <TeamMark color={teamColor(insight.team_abbreviation)} abbr={insight.team_abbreviation ?? "FA"} />
+        <span className="font-semibold">
+          {insight.first_name} {insight.last_name}
+        </span>
+      </div>
+      <p className="text-sm text-fg-muted">{insight.detail}</p>
+    </li>
+  );
+}
 
 export default function Players() {
   const [search, setSearch] = useState("");
   const [offset, setOffset] = useState(0);
+  const [activeOnly, setActiveOnly] = useState(true);
 
   const teams = useTeams({ limit: 100 });
   const teamById = useMemo(
@@ -19,7 +44,16 @@ export default function Players() {
     [teams.data],
   );
 
-  const query = usePlayers({ search: search || undefined, limit: PAGE_SIZE, offset });
+  const query = usePlayers({
+    search: search || undefined,
+    active: activeOnly,
+    limit: PAGE_SIZE,
+    offset,
+  });
+
+  const breakouts = usePlayerInsights({ season: DEFAULT_SEASON, kind: "breakout" });
+  const regressions = usePlayerInsights({ season: DEFAULT_SEASON, kind: "regression" });
+  const insightQueries = { breakout: breakouts, regression: regressions };
 
   const columns: Column<Player>[] = [
     {
@@ -35,6 +69,15 @@ export default function Players() {
     { key: "team", header: "Team", render: (p) => (p.team_id ? (teamById.get(p.team_id) ?? "—") : "FA") },
     { key: "college", header: "College", render: (p) => p.college ?? "—" },
     { key: "country", header: "Country", render: (p) => p.country ?? "—" },
+    ...(activeOnly
+      ? [
+          {
+            key: "season",
+            header: "Season",
+            render: (p: Player) => (p.roster_season ? formatSeason(p.roster_season) : "—"),
+          } satisfies Column<Player>,
+        ]
+      : []),
   ];
 
   return (
@@ -42,10 +85,38 @@ export default function Players() {
       <PageHeader
         eyebrow="The League"
         title="Players"
-        subtitle="A searchable index of players across NBA history. Try a name."
+        subtitle={
+          activeOnly
+            ? "Current NBA rosters, plus the breakout and regression candidates our models are watching."
+            : "A searchable index of players across NBA history. Try a name."
+        }
       />
 
-      <div className="mb-4">
+      {activeOnly && (
+        <div className="mb-8 grid gap-4 sm:grid-cols-2">
+          {INSIGHT_SECTIONS.map(({ title, kind }) => (
+            <Card key={kind} title={title}>
+              <QueryState query={insightQueries[kind]}>
+                {(page) =>
+                  page.data.length === 0 ? (
+                    <EmptyState message="No candidates for this season." />
+                  ) : (
+                    <ul className="divide-y divide-border">
+                      {page.data.slice(0, 10).map((insight) => (
+                        <InsightRow key={`${insight.player_id}-${insight.kind}`} insight={insight} />
+                      ))}
+                    </ul>
+                  )
+                }
+              </QueryState>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <SectionTitle>{activeOnly ? "Current roster" : "All-time index"}</SectionTitle>
+
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <label htmlFor="search" className="sr-only">
           Search players
         </label>
@@ -60,6 +131,35 @@ export default function Players() {
           }}
           className="w-full max-w-xs rounded-full border border-border bg-surface px-4 py-1.5 text-sm focus-visible:border-accent"
         />
+
+        <div className="inline-flex rounded-full border border-border p-0.5 text-sm">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveOnly(true);
+              setOffset(0);
+            }}
+            aria-pressed={activeOnly}
+            className={`rounded-full px-4 py-1 transition-colors ${
+              activeOnly ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg"
+            }`}
+          >
+            Current players
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveOnly(false);
+              setOffset(0);
+            }}
+            aria-pressed={!activeOnly}
+            className={`rounded-full px-4 py-1 transition-colors ${
+              !activeOnly ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg"
+            }`}
+          >
+            All time
+          </button>
+        </div>
       </div>
 
       <QueryState query={query}>
