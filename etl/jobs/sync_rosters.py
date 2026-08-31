@@ -69,6 +69,21 @@ async def run(
     abbr_by_team_id = {team.id: team.abbreviation for team in teams}
 
     db_players = (await session.execute(select(Player))).scalars().all()
+
+    # Players already keyed by a stable NBA id join directly and skip name matching entirely,
+    # so a repeat sync never turns an earlier match (or insert) into a fresh ambiguous lookup.
+    player_id_by_nba_id: dict[int, int] = {
+        player.nba_player_id: player.id for player in db_players if player.nba_player_id is not None
+    }
+    matched: dict[int, int] = {}
+    name_match_entries: list[RosterEntry] = []
+    for entry in rosters:
+        player_id = player_id_by_nba_id.get(entry.nba_player_id)
+        if player_id is not None:
+            matched[entry.nba_player_id] = player_id
+        else:
+            name_match_entries.append(entry)
+
     db_tuples = [
         (
             player.id,
@@ -76,9 +91,13 @@ async def run(
             abbr_by_team_id.get(player.team_id, "") if player.team_id is not None else "",
         )
         for player in db_players
+        if player.nba_player_id is None
     ]
-    nba_tuples = [(entry.nba_player_id, entry.name, entry.team_abbr) for entry in rosters]
-    matched, unmatched = match_players(nba_tuples, db_tuples)
+    nba_tuples = [
+        (entry.nba_player_id, entry.name, entry.team_abbr) for entry in name_match_entries
+    ]
+    name_matched, unmatched = match_players(nba_tuples, db_tuples)
+    matched.update(name_matched)
 
     # Insert the players no pass could pair, keyed by NBA id so later syncs join directly.
     entry_by_nba_id = {entry.nba_player_id: entry for entry in rosters}

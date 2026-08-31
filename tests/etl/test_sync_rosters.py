@@ -188,3 +188,49 @@ async def test_run_dedupes_two_stints_in_same_season_keeping_most_games(session,
     assert rows[0].season == 2025
     assert rows[0].games_played == 50
     assert rows[0].points == 20.0
+
+
+async def test_run_twice_does_not_insert_duplicate_players(session, seeded):
+    args = {
+        "roster_season": 2026,
+        "stat_seasons": [2025],
+        "rosters": [roster(4242, "Brand New Player", "LAL")],
+        "stat_lines": [],
+    }
+    await sync_rosters.run(session, **args)
+    query = select(Player).where(Player.nba_player_id == 4242)
+    first = (await session.execute(query)).scalars().all()
+    assert len(first) == 1
+
+    # The second run must recognise the player by nba_player_id, not try to insert him again.
+    await sync_rosters.run(session, **args)
+    second = (await session.execute(query)).scalars().all()
+    assert len(second) == 1
+    assert second[0].id == first[0].id
+    assert second[0].roster_season == 2026
+
+
+async def test_run_matches_on_nba_player_id_even_when_the_name_is_ambiguous(session, seeded):
+    # Two same-named players make name matching ambiguous; the stable id must still win.
+    team = (await session.execute(select(Team).where(Team.abbreviation == "LAL"))).scalar_one()
+    known = Player(
+        external_id=-9001, first_name="Same", last_name="Name", team_id=team.id, nba_player_id=9001
+    )
+    decoy = Player(external_id=9002, first_name="Same", last_name="Name", team_id=team.id)
+    session.add_all([known, decoy])
+    await session.commit()
+
+    await sync_rosters.run(
+        session,
+        roster_season=2026,
+        stat_seasons=[2025],
+        rosters=[roster(9001, "Same Name", "LAL")],
+        stat_lines=[],
+    )
+    await session.refresh(known)
+    await session.refresh(decoy)
+    assert known.roster_season == 2026
+    assert decoy.roster_season is None
+    query = select(Player).where(Player.nba_player_id == 9001)
+    rows = (await session.execute(query)).scalars().all()
+    assert len(rows) == 1
