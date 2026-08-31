@@ -14,6 +14,9 @@ from dataclasses import dataclass
 REGRESSION_THRESHOLD_PCT = 4.0
 MIN_GAMES = 20
 MIN_THREE_ATTEMPTS = 100
+# The baseline needs real volume behind it or the comparison is noise: a player with a handful of
+# career attempts produces a wild baseline and swamps the genuinely interesting cases.
+MIN_BASELINE_THREE_ATTEMPTS = 200
 BREAKOUT_MAX_AGE = 24.0
 BREAKOUT_MAX_EXPERIENCE = 3
 
@@ -55,7 +58,12 @@ def _sorted(lines: list[SeasonLine]) -> list[SeasonLine]:
 
 
 def regression_signal(lines: list[SeasonLine]) -> Insight | None:
-    """Flag a player shooting far from their own volume-weighted baseline."""
+    """Flag a player shooting far from their own volume-weighted baseline.
+
+    Both the recent season and the baseline must clear a volume floor: the recent season needs
+    MIN_GAMES and MIN_THREE_ATTEMPTS, and the prior-season baseline needs
+    MIN_BASELINE_THREE_ATTEMPTS, or the comparison is too noisy to be meaningful.
+    """
     ordered = _sorted(lines)
     if len(ordered) < 2:
         return None
@@ -66,6 +74,8 @@ def regression_signal(lines: list[SeasonLine]) -> Insight | None:
 
     weight = sum(line.three_attempts for line in prior)
     if weight <= 0:
+        return None
+    if weight < MIN_BASELINE_THREE_ATTEMPTS:
         return None
     baseline = sum(line.fg3_pct * line.three_attempts for line in prior) / weight
 

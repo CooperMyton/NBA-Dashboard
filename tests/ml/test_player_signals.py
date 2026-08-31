@@ -118,3 +118,27 @@ def test_breakout_qualifies_on_experience_alone() -> None:
 def test_breakout_handles_zero_minutes_without_dividing_by_zero() -> None:
     lines = [line(2024, minutes=0.0), line(2025, minutes=28.0)]
     assert breakout_signal(lines, age=22.0, experience=1) is None
+
+
+def test_regression_requires_baseline_volume() -> None:
+    # Prior season has 70 games x 1.0 attempts = 70 attempts, below the 200 floor.
+    thin = [line(2024, fg3a=1.0, fg3_pct=0.100), line(2025, fg3_pct=0.430)]
+    assert regression_signal(thin) is None
+
+
+def test_regression_accepts_a_well_established_baseline() -> None:
+    # Prior season has 70 games x 5.0 attempts = 350 attempts, clearing the floor.
+    solid = [line(2024, fg3a=5.0, fg3_pct=0.330), line(2025, fg3_pct=0.430)]
+    insight = regression_signal(solid)
+    assert insight is not None
+    assert insight.score > 0
+
+
+def test_regression_baseline_volume_accumulates_across_seasons() -> None:
+    # Two prior seasons at 140 attempts each clear the 200 floor together but not individually.
+    spread = [
+        line(2023, fg3a=2.0, fg3_pct=0.330),
+        line(2024, fg3a=2.0, fg3_pct=0.330),
+        line(2025, fg3_pct=0.430),
+    ]
+    assert regression_signal(spread) is not None
