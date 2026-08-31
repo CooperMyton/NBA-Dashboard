@@ -167,7 +167,7 @@ export default function TeamDetail() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div className="mb-8">
                 <Card title="Recent Games">
                   <QueryState query={games}>
                     {(page) =>
@@ -186,23 +186,19 @@ export default function TeamDetail() {
                     }
                   </QueryState>
                 </Card>
-
-                <Card title="Current roster">
-                  <QueryState query={players}>
-                    {(page) =>
-                      page.data.length === 0 ? (
-                        <EmptyState message="No roster data." />
-                      ) : (
-                        <DataTable
-                          columns={rosterColumns}
-                          rows={page.data}
-                          rowKey={(p) => p.id}
-                        />
-                      )
-                    }
-                  </QueryState>
-                </Card>
               </div>
+
+              <Card title="Current roster">
+                <QueryState query={players}>
+                  {(page) =>
+                    page.data.length === 0 ? (
+                      <EmptyState message="No roster data." />
+                    ) : (
+                      <DataTable columns={rosterColumns} rows={page.data} rowKey={(p) => p.id} />
+                    )
+                  }
+                </QueryState>
+              </Card>
             </>
           );
         }}
