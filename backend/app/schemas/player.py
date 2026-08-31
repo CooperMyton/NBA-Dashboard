@@ -16,3 +16,4 @@ class PlayerOut(BaseModel):
     college: str | None
     country: str | None
     team_id: int | None
+    roster_season: int | None = None
