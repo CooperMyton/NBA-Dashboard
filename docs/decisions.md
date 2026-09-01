@@ -239,6 +239,51 @@ sorting per resource; Redis read-through cache on `/standings` and `/predictions
 
 ---
 
+## D-017 — Second provider: `nba_api` for rosters and player season stats, local-only
+
+**Decision.** Keep `balldontlie.io` Free as the provider for teams, games and the win-probability
+model (D-001 stands). Add **`nba_api`** (`stats.nba.com`) as a **second, narrowly scoped** provider
+for current rosters and per-season player statistics, read by a **manually run, local-only** job
+(`etl.jobs.sync_rosters`).
+
+**Why a second provider was unavoidable.** balldontlie Free has no season dimension for players. Its
+`/players` endpoint accepts `team_ids[]` but returns every player who has ever appeared for the
+franchise — filtering the Lakers returns Carmelo Anthony, Pau Gasol and Kurt Rambis beside Luka
+Doncic. This was verified against the live API, not inferred from the docs, which claim otherwise.
+There is no free-tier parameter that narrows it. So team pages could not show a real roster at all.
+
+**Why not pay instead.** balldontlie ALL-STAR ($9.99/mo) adds game player stats and injuries but
+still not season averages; those need GOAT ($39.99/mo). Either breaks the project's $0/month
+constraint (D-000) for less data than `nba_api` gives free.
+
+**Supersedes.** D-001's blanket rejection of `stats.nba.com` ("cloud IP blocking + murky ToS"). Both
+objections stand as stated — they are the reason for the scope limits below, not reasons the
+provider is unusable:
+
+- **Cloud IP blocking is real.** The NBA blocks datacenter ranges (AWS, GCP, Azure), which covers
+  GitHub Actions and Render. This job is therefore **excluded from the nightly pipeline** and never
+  runs in CI or on the deployed host. It runs from a developer machine and writes to the cloud
+  database. D-014's nightly-ETL design is unchanged. This is the "residential IP backfill" already
+  contemplated earlier in this document, made recurring rather than one-time.
+- **ToS remain undocumented.** `stats.nba.com` is an unofficial endpoint. The job is rate-limited
+  to roughly 1 request per 0.7s, runs about 38 requests, and is invoked by hand a few times a
+  season. If this project ever needed a commercial footing, this dependency is the first thing to
+  re-examine.
+
+**Blast radius is deliberately small.** `etl/providers/nba_stats.py` is the only module that
+imports `nba_api`; no test imports it or touches the network. The win-probability model is
+untouched — it remains team-level (D-002/D-006), and no player statistic feeds it. If `nba_api`
+disappeared tomorrow, rosters and player stats would go stale and everything else would keep
+working.
+
+**Identity across providers.** The two providers share no key, so players are paired by name on
+first sync: exact normalised full name, then last name plus team. Measured at 98.6% (574 of 582).
+Survivors are inserted as new rows carrying `nba_player_id`, which every later sync joins on
+directly. The residual cost is a small number of duplicate rows for players whose names are
+ambiguous across sources (common surnames, nickname-versus-legal-name).
+
+---
+
 ## Still open (resolve at the noted phase, not before)
 
 - **Backend host** — final pick among Render free / Fly.io / Cloud Run / HF Spaces, confirmed

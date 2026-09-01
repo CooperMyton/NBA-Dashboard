@@ -124,7 +124,14 @@ async def run(
         await session.flush()
         matched[nba_id] = player.id
     if unmatched:
-        logger.info("sync_rosters.inserted_unmatched", count=len(unmatched))
+        # Log the names, not just the count. Each of these is a new player row for someone who may
+        # already exist under a different spelling, so this list is the only way an operator can
+        # spot and reconcile a duplicate. A sudden jump also signals an upstream format change.
+        logger.info(
+            "sync_rosters.inserted_unmatched",
+            count=len(unmatched),
+            names=sorted(entry_by_nba_id[nba_id].name for nba_id in unmatched),
+        )
 
     try:
         # Anyone previously rostered for this season who is no longer on a roster is cleared
