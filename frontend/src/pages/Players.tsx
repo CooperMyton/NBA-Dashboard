@@ -9,6 +9,7 @@ import { usePlayers } from "../hooks/usePlayers";
 import { useTeams } from "../hooks/useTeams";
 import { DEFAULT_SEASON } from "../lib/constants";
 import { formatPct } from "../lib/format";
+import { insightBadge } from "../lib/insights";
 import { teamColor } from "../lib/teamColors";
 
 /** Renders one decimal place, or an em dash when the player has no stat line. */
@@ -25,12 +26,18 @@ const INSIGHT_SECTIONS = [
 
 /** One breakout/regression candidate row, colour-tagged with its team. */
 function InsightRow({ insight }: { insight: PlayerInsight }) {
+  const badge = insightBadge(insight);
   return (
     <li className="py-2">
       <div className="flex items-center gap-2">
         <TeamMark color={teamColor(insight.team_abbreviation)} abbr={insight.team_abbreviation ?? "FA"} />
         <span className="font-semibold">
           {insight.first_name} {insight.last_name}
+        </span>
+        <span
+          className={`rounded px-1.5 py-0.5 text-xs font-semibold ring-1 ${badge.className}`}
+        >
+          {badge.label}
         </span>
       </div>
       <p className="text-sm text-fg-muted">{insight.detail}</p>

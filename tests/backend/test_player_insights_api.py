@@ -124,6 +124,69 @@ async def test_insights_filters_by_season(client, seeded):
     assert response.json()["data"] == []
 
 
+async def test_insights_filters_by_team_id(client, session, seeded):
+    active, _ = seeded
+    other_team = Team(
+        external_id=2,
+        abbreviation="BOS",
+        name="Celtics",
+        full_name="Boston Celtics",
+        city="Boston",
+        conference="East",
+        division="Atlantic",
+    )
+    session.add(other_team)
+    await session.flush()
+    other_player = Player(
+        external_id=3,
+        first_name="Jayson",
+        last_name="Tatum",
+        team_id=other_team.id,
+        roster_season=2026,
+    )
+    session.add(other_player)
+    await session.flush()
+    session.add(
+        PlayerInsight(
+            player_id=other_player.id,
+            season=2025,
+            kind="breakout",
+            score=5.0,
+            detail="on the other team",
+        )
+    )
+    await session.commit()
+
+    response = await client.get(f"/api/v1/players/insights?season=2025&team_id={active.team_id}")
+    rows = response.json()["data"]
+    assert [row["last_name"] for row in rows] == ["Doncic"]
+
+    response = await client.get(f"/api/v1/players/insights?season=2025&team_id={other_team.id}")
+    rows = response.json()["data"]
+    assert [row["last_name"] for row in rows] == ["Tatum"]
+
+
+async def test_insights_orders_by_score_magnitude_not_sign(client, session, seeded):
+    active, _ = seeded
+    session.add(
+        PlayerInsight(
+            player_id=active.id,
+            season=2025,
+            kind="regression",
+            score=-9.0,
+            detail="bounce-back candidate with the largest magnitude",
+        )
+    )
+    await session.commit()
+
+    response = await client.get("/api/v1/players/insights?season=2025")
+    rows = response.json()["data"]
+    # The seeded fixture's breakout insight has score 3.2; the strongly negative bounce-back
+    # score of -9.0 must sort first because |−9.0| > |3.2|, not last because −9.0 < 3.2.
+    assert rows[0]["score"] == -9.0
+    assert rows[1]["score"] == 3.2
+
+
 async def test_get_player_by_id_still_works(client, seeded):
     active, _ = seeded
     response = await client.get(f"/api/v1/players/{active.id}")

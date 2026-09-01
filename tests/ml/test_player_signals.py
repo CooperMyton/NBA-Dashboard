@@ -120,6 +120,43 @@ def test_breakout_handles_zero_minutes_without_dividing_by_zero() -> None:
     assert breakout_signal(lines, age=22.0, experience=1) is None
 
 
+def test_breakout_requires_minimum_minutes() -> None:
+    # 3.5 -> 11.1 minutes: per-36 variance is huge at this volume, and both seasons sit below
+    # the 15-minute floor, so this must not be flagged as a breakout.
+    lines = [
+        line(2024, gp=40, minutes=3.5, points=1.0, rebounds=0.5, assists=0.3, usage=0.160),
+        line(2025, gp=40, minutes=11.1, points=4.0, rebounds=1.5, assists=1.0, usage=0.230),
+    ]
+    assert breakout_signal(lines, age=22.0, experience=1) is None
+
+
+def test_breakout_requires_minimum_games() -> None:
+    lines = [
+        line(2024, gp=29, minutes=18.0, points=6.0, rebounds=2.0, assists=1.0, usage=0.160),
+        line(2025, gp=29, minutes=28.0, points=15.0, rebounds=4.0, assists=3.0, usage=0.230),
+    ]
+    assert breakout_signal(lines, age=22.0, experience=2) is None
+
+
+def test_breakout_flags_when_both_floors_are_cleared() -> None:
+    lines = [
+        line(2024, gp=30, minutes=15.0, points=5.0, rebounds=2.0, assists=1.0, usage=0.160),
+        line(2025, gp=30, minutes=25.0, points=14.0, rebounds=4.0, assists=3.0, usage=0.230),
+    ]
+    insight = breakout_signal(lines, age=22.0, experience=2)
+    assert insight is not None
+    assert insight.kind == "breakout"
+
+
+def test_breakout_minimum_floors_apply_to_prior_season_too() -> None:
+    # The recent season alone clears both floors, but the prior season does not - still rejected.
+    lines = [
+        line(2024, gp=10, minutes=8.0, points=2.0, rebounds=1.0, assists=0.5, usage=0.160),
+        line(2025, gp=40, minutes=28.0, points=15.0, rebounds=4.0, assists=3.0, usage=0.230),
+    ]
+    assert breakout_signal(lines, age=22.0, experience=2) is None
+
+
 def test_regression_requires_baseline_volume() -> None:
     # Prior season has 70 games x 1.0 attempts = 70 attempts, below the 200 floor.
     thin = [line(2024, fg3a=1.0, fg3_pct=0.100), line(2025, fg3_pct=0.430)]

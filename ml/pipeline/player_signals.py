@@ -19,6 +19,10 @@ MIN_THREE_ATTEMPTS = 100
 MIN_BASELINE_THREE_ATTEMPTS = 200
 BREAKOUT_MAX_AGE = 24.0
 BREAKOUT_MAX_EXPERIENCE = 3
+# Per-36 variance scales roughly as 1/minutes, and `score` is the per-36 delta the UI ranks by,
+# so without a floor the least reliable estimates sort to the top of the list.
+MIN_BREAKOUT_MINUTES = 15.0
+MIN_BREAKOUT_GAMES = 30
 
 
 @dataclass(frozen=True)
@@ -63,6 +67,12 @@ def regression_signal(lines: list[SeasonLine]) -> Insight | None:
     Both the recent season and the baseline must clear a volume floor: the recent season needs
     MIN_GAMES and MIN_THREE_ATTEMPTS, and the prior-season baseline needs
     MIN_BASELINE_THREE_ATTEMPTS, or the comparison is too noisy to be meaningful.
+
+    `score` is signed and that sign is meaningful, not incidental: a POSITIVE score means the
+    player is shooting ABOVE their own baseline (a "regression" candidate, likely to decline back
+    toward it), while a NEGATIVE score means they are shooting BELOW their baseline (a
+    "bounce-back" candidate, likely to improve). Callers that rank or label these insights must
+    branch on this sign rather than treating every regression-kind insight as a decline.
     """
     ordered = _sorted(lines)
     if len(ordered) < 2:
@@ -91,7 +101,13 @@ def regression_signal(lines: list[SeasonLine]) -> Insight | None:
 
 
 def breakout_signal(lines: list[SeasonLine], *, age: float, experience: int) -> Insight | None:
-    """Flag a young player whose minutes, usage and per-36 production are all rising."""
+    """Flag a young player whose minutes, usage and per-36 production are all rising.
+
+    Both seasons must clear MIN_BREAKOUT_MINUTES and MIN_BREAKOUT_GAMES: `score` is the per-36
+    delta and the UI ranks candidates by it, but per-36 variance scales roughly as 1/minutes, so
+    a low-minute, low-game stint produces a large, unreliable swing that would otherwise sort to
+    the top of the list.
+    """
     ordered = _sorted(lines)
     if len(ordered) < 2:
         return None
@@ -100,6 +116,13 @@ def breakout_signal(lines: list[SeasonLine], *, age: float, experience: int) -> 
 
     recent, previous = ordered[-1], ordered[-2]
     if previous.minutes <= 0 or recent.minutes <= 0:
+        return None
+    if (
+        recent.minutes < MIN_BREAKOUT_MINUTES
+        or previous.minutes < MIN_BREAKOUT_MINUTES
+        or recent.games_played < MIN_BREAKOUT_GAMES
+        or previous.games_played < MIN_BREAKOUT_GAMES
+    ):
         return None
 
     rising = (

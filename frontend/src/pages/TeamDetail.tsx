@@ -12,6 +12,7 @@ import { useStandings } from "../hooks/useStandings";
 import { useTeam, useTeams } from "../hooks/useTeams";
 import { DEFAULT_SEASON } from "../lib/constants";
 import { formatDate, formatPct, formatSeason } from "../lib/format";
+import { insightBadge } from "../lib/insights";
 import { teamColor } from "../lib/teamColors";
 
 /** Renders one decimal place, or an em dash when the player has no stat line. */
@@ -28,7 +29,7 @@ export default function TeamDetail() {
   const standings = useStandings({ season: DEFAULT_SEASON, limit: 100 });
   const games = useGames({ season: DEFAULT_SEASON, team_id: teamId, order: "desc", limit: 10 });
   const players = usePlayers({ team_id: teamId, active: true, limit: 30 });
-  const insights = usePlayerInsights({ season: DEFAULT_SEASON });
+  const insights = usePlayerInsights({ season: DEFAULT_SEASON, team_id: teamId });
 
   const teamAbbr = useMemo(
     () => new Map((teams.data?.data ?? []).map((t) => [t.id, t.abbreviation])),
@@ -47,19 +48,16 @@ export default function TeamDetail() {
       header: "Player",
       render: (p) => {
         const insight: PlayerInsight | undefined = insightByPlayer.get(p.id);
+        const badge = insight ? insightBadge(insight) : null;
         return (
           <span className="font-medium">
             {p.first_name} {p.last_name}
-            {insight ? (
+            {insight && badge ? (
               <span
                 title={insight.detail}
-                className={
-                  insight.kind === "breakout"
-                    ? "ml-2 rounded px-1.5 py-0.5 text-xs font-semibold text-win ring-1 ring-win/40"
-                    : "ml-2 rounded px-1.5 py-0.5 text-xs font-semibold text-loss ring-1 ring-loss/40"
-                }
+                className={`ml-2 rounded px-1.5 py-0.5 text-xs font-semibold ring-1 ${badge.className}`}
               >
-                {insight.kind}
+                {badge.label}
               </span>
             ) : null}
           </span>

@@ -1,6 +1,6 @@
 """Player insight queries."""
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.api.deps import Pagination
@@ -10,7 +10,9 @@ from backend.app.models.team import Team
 from backend.app.services.common import total_count
 
 
-def _base(season: int, kind: str | None) -> Select[tuple[PlayerInsight, Player, Team]]:
+def _base(
+    season: int, kind: str | None, team_id: int | None = None
+) -> Select[tuple[PlayerInsight, Player, Team]]:
     stmt = (
         select(PlayerInsight, Player, Team)
         .join(Player, Player.id == PlayerInsight.player_id)
@@ -21,16 +23,23 @@ def _base(season: int, kind: str | None) -> Select[tuple[PlayerInsight, Player, 
     )
     if kind is not None:
         stmt = stmt.where(PlayerInsight.kind == kind)
+    if team_id is not None:
+        stmt = stmt.where(Player.team_id == team_id)
     return stmt
 
 
 async def list_insights(
-    session: AsyncSession, *, page: Pagination, season: int, kind: str | None = None
+    session: AsyncSession,
+    *,
+    page: Pagination,
+    season: int,
+    kind: str | None = None,
+    team_id: int | None = None,
 ) -> tuple[list[dict[str, object]], int]:
-    stmt = _base(season, kind)
+    stmt = _base(season, kind, team_id)
     total = await total_count(session, stmt)
     # Strongest signal first, regardless of sign — a big drop is as interesting as a big rise.
-    stmt = stmt.order_by(PlayerInsight.score.desc()).limit(page.limit).offset(page.offset)
+    stmt = stmt.order_by(func.abs(PlayerInsight.score).desc()).limit(page.limit).offset(page.offset)
     rows = (await session.execute(stmt)).all()
     return [
         {

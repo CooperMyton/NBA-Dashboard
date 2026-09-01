@@ -47,9 +47,10 @@ async def list_player_insights(
     page: PaginationDep,
     season: Annotated[int, Query()],
     kind: Annotated[str | None, Query(pattern="^(breakout|regression)$")] = None,
+    team_id: Annotated[int | None, Query()] = None,
 ) -> PagedEnvelope[PlayerInsightOut]:
     items, total = await player_insights_service.list_insights(
-        session, page=page, season=season, kind=kind
+        session, page=page, season=season, kind=kind, team_id=team_id
     )
     return PagedEnvelope[PlayerInsightOut](
         data=[PlayerInsightOut.model_validate(row) for row in items],

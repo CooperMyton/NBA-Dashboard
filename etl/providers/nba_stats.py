@@ -6,10 +6,12 @@ from a developer machine, never from CI or the deployed host.
 """
 
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
 from nba_api.stats.endpoints import commonteamroster, leaguedashplayerstats
+from nba_api.stats.static import teams as nba_teams
 
 from backend.app.core.logging import get_logger
 
@@ -122,6 +124,16 @@ def fetch_season_stats(season: int) -> list[StatLine]:
     lines = rows_to_stat_lines(base, advanced, season=season)
     logger.info("nba_stats.season_fetched", season=season, players=len(lines))
     return lines
+
+
+def team_nba_ids(abbreviations: Iterable[str]) -> dict[str, int]:
+    """Map our team abbreviations to nba_api's own (stable, unrelated) team ids.
+
+    nba_api's static team data has no season dimension, so this is a plain lookup rather than a
+    network call. Abbreviations with no match in nba_api's data are silently omitted.
+    """
+    nba_by_abbr = {t["abbreviation"]: int(t["id"]) for t in nba_teams.get_teams()}
+    return {abbr: nba_by_abbr[abbr] for abbr in abbreviations if abbr in nba_by_abbr}
 
 
 def fetch_rosters(season: int, team_nba_ids: dict[str, int]) -> list[RosterEntry]:

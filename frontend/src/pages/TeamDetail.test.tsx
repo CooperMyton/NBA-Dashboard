@@ -115,8 +115,19 @@ vi.mock("../hooks/usePlayerInsights", () => ({
           score: 3.2,
           detail: "18.0 to 28.0 minutes",
         },
+        {
+          player_id: 2,
+          first_name: "Kareem",
+          last_name: "Abdul-Jabbar",
+          team_id: 1,
+          team_abbreviation: "LAL",
+          season: 2025,
+          kind: "regression",
+          score: -9.0,
+          detail: "3P% 0.300 against a 0.400 baseline",
+        },
       ],
-      meta: { total: 1, limit: 50, offset: 0, has_more: false },
+      meta: { total: 2, limit: 50, offset: 0, has_more: false },
     },
     isLoading: false,
     isPending: false,
@@ -141,6 +152,15 @@ describe("TeamDetail", () => {
   it("labels a flagged player on the roster", () => {
     renderPage();
     expect(screen.getByText(/breakout/i)).toBeInTheDocument();
+  });
+
+  it("labels a negative-score regression insight as bounce-back, not breakout or decline", () => {
+    renderPage();
+    const badge = screen.getByText("bounce-back");
+    expect(badge).toBeInTheDocument();
+    expect(badge.className).toContain("text-win");
+    expect(badge.className).not.toContain("text-loss");
+    expect(screen.queryByText("regression")).not.toBeInTheDocument();
   });
 
   it("shows an em dash for a player with no stats instead of NaN", () => {

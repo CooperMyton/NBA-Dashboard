@@ -63,7 +63,19 @@ vi.mock("../hooks/usePlayerInsights", () => ({
                 detail: "18.0 to 28.0 minutes",
               },
             ]
-          : [],
+          : [
+              {
+                player_id: 3,
+                first_name: "Anthony",
+                last_name: "Davis",
+                team_id: 1,
+                team_abbreviation: "LAL",
+                season: 2025,
+                kind: "regression",
+                score: -9.0,
+                detail: "3P% 0.300 against a 0.400 baseline",
+              },
+            ],
       meta: { total: 1, limit: 50, offset: 0, has_more: false },
     },
     isLoading: false,
@@ -104,6 +116,14 @@ describe("Players", () => {
   it("shows a breakout candidate with its supporting detail", () => {
     renderPage();
     expect(screen.getByText("18.0 to 28.0 minutes")).toBeInTheDocument();
+  });
+
+  it("labels a negative-score regression candidate as bounce-back in win colours", () => {
+    renderPage();
+    const badge = screen.getByText("bounce-back");
+    expect(badge).toBeInTheDocument();
+    expect(badge.className).toContain("text-win");
+    expect(badge.className).not.toContain("text-loss");
   });
 
   it("renders a player's latest season stats", () => {

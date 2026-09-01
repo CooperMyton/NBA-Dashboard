@@ -23,7 +23,13 @@ from backend.app.models.team import Team
 from etl.core.names import match_players
 from etl.core.summary import JobSummary
 from etl.core.upsert import upsert
-from etl.providers.nba_stats import RosterEntry, StatLine, fetch_rosters, fetch_season_stats
+from etl.providers.nba_stats import (
+    RosterEntry,
+    StatLine,
+    fetch_rosters,
+    fetch_season_stats,
+    team_nba_ids,
+)
 from ml.pipeline.player_signals import SeasonLine, breakout_signal, regression_signal
 
 logger = get_logger("etl.sync_rosters")
@@ -254,17 +260,9 @@ async def main() -> None:
     configure_logging()
     async with SessionLocal() as session:
         teams = (await session.execute(select(Team))).scalars().all()
-        # nba_api's team ids are stable and unrelated to ours; look them up from its static data.
-        from nba_api.stats.static import teams as nba_teams
+        nba_ids_by_abbr = team_nba_ids(team.abbreviation for team in teams)
 
-        nba_by_abbr = {t["abbreviation"]: int(t["id"]) for t in nba_teams.get_teams()}
-        team_nba_ids = {
-            team.abbreviation: nba_by_abbr[team.abbreviation]
-            for team in teams
-            if team.abbreviation in nba_by_abbr
-        }
-
-        rosters = fetch_rosters(DEFAULT_ROSTER_SEASON, team_nba_ids)
+        rosters = fetch_rosters(DEFAULT_ROSTER_SEASON, nba_ids_by_abbr)
         stat_lines: list[StatLine] = []
         for season in DEFAULT_STAT_SEASONS:
             stat_lines.extend(fetch_season_stats(season))
