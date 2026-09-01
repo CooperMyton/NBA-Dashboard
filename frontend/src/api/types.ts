@@ -21,6 +21,29 @@ export interface Player {
   college: string | null;
   country: string | null;
   team_id: number | null;
+  roster_season: number | null;
+  latest_stats: {
+    season: number;
+    games_played: number;
+    minutes: number;
+    points: number;
+    rebounds: number;
+    assists: number;
+    ts_pct: number;
+    usage_pct: number;
+  } | null;
+}
+
+export interface PlayerInsight {
+  player_id: number;
+  first_name: string;
+  last_name: string;
+  team_id: number | null;
+  team_abbreviation: string | null;
+  season: number;
+  kind: "breakout" | "regression";
+  score: number;
+  detail: string;
 }
 
 export interface Game {

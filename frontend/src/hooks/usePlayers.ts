@@ -6,6 +6,7 @@ import type { Player } from "../api/types";
 export interface PlayerFilters {
   team_id?: number;
   search?: string;
+  active?: boolean;
   limit?: number;
   offset?: number;
 }
