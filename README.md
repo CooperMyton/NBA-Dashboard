@@ -41,7 +41,7 @@ and a month is ~730 hours, so a round-the-clock ping would consume the whole all
              cache  ▼      │ read-through
                   Redis ───┘
                     │
-          React + Vite + TanStack Query  (Dashboard · Teams · Team Detail · Players · Model Lab · Prediction Tracker)
+          React + Vite + TanStack Query  (Dashboard · Teams · Team Detail · Players · Model Lab · Prediction Tracker · Season Projection)
 ```
 
 The ML pipeline never sits in the request path — it writes predictions offline; the API only ever
@@ -52,20 +52,20 @@ reads the currently active registered model. Nightly orchestration:
 
 | Area | Highlights |
 |---|---|
-| **Data engineering** | Rate-limited provider client (token bucket + retry/backoff), Pydantic-validated payloads, idempotent `ON CONFLICT` upserts, post-load data-quality checks, nightly orchestration |
+| **Data engineering** | Rate-limited provider client (token bucket + retry/backoff), Pydantic-validated payloads, idempotent `ON CONFLICT` upserts, post-load data-quality checks, nightly orchestration; a second provider (`nba_api`) for rosters and player stats, reconciled to the first by two-pass name matching (98.6%) and a stable cross-provider key |
 | **Backend** | Async FastAPI, SQLAlchemy 2.0 + asyncpg, Alembic (tested downgrades), consistent envelope/error contract, pagination/filtering, Redis read-through cache + sliding-window rate limiting, API-key auth |
-| **ML** | Leak-free feature engineering, time-based split, majority-class baseline gate, accuracy/log-loss/Brier calibration, versioned model registry with an explicit active pointer, batch inference + settlement |
+| **ML** | Leak-free feature engineering, time-based split, majority-class baseline gate, accuracy/log-loss/Brier calibration, versioned model registry with an explicit active pointer, batch inference + settlement; Monte Carlo season simulation (2,000 runs incl. play-in and playoffs) for win totals, playoff and title odds; transparent breakout/regression player signals with volume floors |
 | **Frontend** | React + TypeScript, TanStack Query (typed hooks, loading/error states), dark theme, accessible semantics, Chart.js |
 | **Platform** | Docker Compose (migrate-then-serve), multi-job GitHub Actions CI, GHCR image publishing, manual-approval-gated deploy, expand/contract migrations |
-| **Rigor** | ~80 tests, `ruff` + `black` + `mypy --strict` (zero errors), 80% backend coverage gate, migration round-trip verified in CI |
+| **Rigor** | 164 backend/ETL/ML tests + 15 frontend tests, `ruff` + `black` + `mypy --strict` (zero errors), 86% backend coverage against an 80% gate, migration round-trip verified in CI |
 
 ## Tech stack ($0/month)
 
 Python 3.12 (uv) · FastAPI · SQLAlchemy 2.0 · Alembic · PostgreSQL 16 · Redis · scikit-learn ·
 React + Vite + TypeScript · Tailwind · TanStack Query · Chart.js · Docker · GitHub Actions.
 
-Hosting plan: **Neon** (Postgres) · **Upstash** (Redis) · **Render** (API) · **Cloudflare Pages**
-(frontend) · **GitHub Actions** (CI + nightly ETL). See [`docs/deployment.md`](docs/deployment.md).
+Hosting: **Neon** (Postgres) · **Upstash** (Redis) · **Render** (API) · **Cloudflare Workers**
+(static frontend) · **GitHub Actions** (CI, nightly ETL, keep-warm). See [`docs/deployment.md`](docs/deployment.md).
 
 ## Build status
 
@@ -123,10 +123,10 @@ cd frontend && npm install && npm run dev   # proxies /api → :8000
 backend/   FastAPI app (api/v1 routers, services, models, schemas, core), Alembic, scripts
 etl/       provider client, sync/derive/settle/predict jobs, pipeline orchestration
 ml/        pipeline (collect→features→train→evaluate→register), inference, registry
-frontend/  React + Vite app (6 pages, typed API client, query hooks)
+frontend/  React + Vite app (7 pages, typed API client, query hooks)
 docs/      decisions · data_source · ml_lifecycle · deployment
 docker/    compose + Dockerfiles (backend, frontend) + nginx
-tests/     backend / etl / ml suites (~80 tests)
+tests/     backend / etl / ml suites (164 tests)
 ```
 
 ## Quality gates
