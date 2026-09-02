@@ -7,6 +7,7 @@ import { QueryState } from "../components/QueryState";
 import { Card, EmptyState, Stat } from "../components/ui";
 import { useGames } from "../hooks/useGames";
 import { usePlayerInsights } from "../hooks/usePlayerInsights";
+import { statCell } from "../lib/stats";
 import { usePlayers } from "../hooks/usePlayers";
 import { useStandings } from "../hooks/useStandings";
 import { useTeam, useTeams } from "../hooks/useTeams";
@@ -14,11 +15,6 @@ import { DEFAULT_SEASON } from "../lib/constants";
 import { formatDate, formatPct, formatSeason } from "../lib/format";
 import { insightBadge } from "../lib/insights";
 import { teamColor } from "../lib/teamColors";
-
-/** Renders one decimal place, or an em dash when the player has no stat line. */
-function statCell(value: number | undefined, digits = 1): string {
-  return value === undefined ? "—" : value.toFixed(digits);
-}
 
 export default function TeamDetail() {
   const { id } = useParams();
