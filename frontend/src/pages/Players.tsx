@@ -5,6 +5,7 @@ import { DataTable, type Column } from "../components/DataTable";
 import { Card, EmptyState, PageHeader, SectionTitle, TeamMark } from "../components/ui";
 import { QueryState } from "../components/QueryState";
 import { usePlayerInsights } from "../hooks/usePlayerInsights";
+import { statCell } from "../lib/stats";
 import { usePlayers } from "../hooks/usePlayers";
 import { useTeams } from "../hooks/useTeams";
 import { DEFAULT_SEASON } from "../lib/constants";
@@ -13,10 +14,6 @@ import { insightBadge } from "../lib/insights";
 import { teamColor } from "../lib/teamColors";
 
 /** Renders one decimal place, or an em dash when the player has no stat line. */
-function statCell(value: number | undefined, digits = 1): string {
-  return value === undefined ? "—" : value.toFixed(digits);
-}
-
 const PAGE_SIZE = 25;
 
 const INSIGHT_SECTIONS = [
@@ -58,13 +55,23 @@ export default function Players() {
 
   const query = usePlayers({
     search: search || undefined,
-    active: activeOnly,
+    // Send the flag only when narrowing to current players; the all-time index wants everyone.
+    active: activeOnly ? true : undefined,
     limit: PAGE_SIZE,
     offset,
   });
 
-  const breakouts = usePlayerInsights({ season: DEFAULT_SEASON, kind: "breakout" });
-  const regressions = usePlayerInsights({ season: DEFAULT_SEASON, kind: "regression" });
+  // The insight cards only render for the current-roster view, so skip the fetches otherwise.
+  const breakouts = usePlayerInsights({
+    season: DEFAULT_SEASON,
+    kind: "breakout",
+    enabled: activeOnly,
+  });
+  const regressions = usePlayerInsights({
+    season: DEFAULT_SEASON,
+    kind: "regression",
+    enabled: activeOnly,
+  });
   const insightQueries = { breakout: breakouts, regression: regressions };
 
   const columns: Column<Player>[] = [

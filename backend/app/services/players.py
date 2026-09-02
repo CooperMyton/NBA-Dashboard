@@ -48,8 +48,11 @@ async def list_players(
         stmt = stmt.where(Player.team_id == team_id)
     if search:
         stmt = stmt.where(Player.last_name.ilike(f"%{search}%"))
-    if active:
-        stmt = stmt.where(Player.roster_season.is_not(None))
+    # Three states: omitted -> everyone; true -> current rosters; false -> historical only.
+    if active is not None:
+        stmt = stmt.where(
+            Player.roster_season.is_not(None) if active else Player.roster_season.is_(None)
+        )
     total = await total_count(session, stmt)
     stmt = stmt.order_by(Player.last_name, Player.first_name).limit(page.limit).offset(page.offset)
     players = list((await session.execute(stmt)).scalars().all())

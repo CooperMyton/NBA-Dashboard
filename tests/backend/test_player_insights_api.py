@@ -282,3 +282,11 @@ async def test_list_players_fetches_stats_in_a_single_query(session, seeded_with
 
     stat_queries = [q for q in queries if "player_season_stats" in q]
     assert len(stat_queries) == 1
+
+
+async def test_players_active_false_returns_only_historical(client, seeded):
+    # Three states: omitted -> everyone, true -> current, false -> historical only.
+    response = await client.get("/api/v1/players?active=false")
+    assert response.status_code == 200
+    names = [row["last_name"] for row in response.json()["data"]]
+    assert names == ["Abdul-Jabbar"]
