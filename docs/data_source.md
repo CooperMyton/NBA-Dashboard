@@ -6,8 +6,10 @@
 ## Provider: balldontlie.io (NBA), Free tier
 
 - **Why this provider:** ToS-compliant, documented, and does **not** block datacenter/CI IPs — so
-  nightly ETL works from GitHub Actions and any cloud host. `stats.nba.com`/`nba_api` was rejected
-  because it blocks cloud/CI IPs and has murky ToS. See [`decisions.md`](./decisions.md) D-001.
+  nightly ETL works from GitHub Actions and any cloud host. `stats.nba.com`/`nba_api` is not used for
+  games or the model because it blocks cloud/CI IPs and has undocumented ToS (D-001). It is used,
+  narrowly, for current rosters and per-season player stats via a local-only job, because
+  balldontlie Free has no season dimension for players. See [`decisions.md`](./decisions.md) D-017.
 - **Cost:** $0 (Free tier).
 - **Base URL:** `https://api.balldontlie.io/v1`
 - **Auth:** API key sent in the `Authorization` header (raw key, no `Bearer` prefix). Key obtained
